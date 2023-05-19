@@ -36,10 +36,11 @@ typedef struct {
 } InputBuffer;
 
 // globals.. yuck ;)
-static bool callsign_use_uls = false, callsign_use_qrz = false, callsign_initialized = false, callsign_use_cache = false;
+static bool callsign_use_uls = false, callsign_use_qrz = false,
+            callsign_initialized = false, callsign_use_cache = false;
 static const char *callsign_cache_db = NULL;
-static time_t callsign_cache_expiry = 86400 * 7;		// a week
-static bool callsign_keep_stale_offline = false;
+static time_t callsign_cache_expiry = 86400 * 3;		// 3 days
+static bool offline_mode = false, callsign_keep_stale_offline = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static sqlite3_stmt *cache_insert_stmt = NULL;
@@ -404,6 +405,15 @@ calldata_t *callsign_cache_find(const char *callsign) {
       return NULL;
    }
 
+   // is it expired?
+   if (cd->cache_expiry <= now) {
+      // are we offline? are we keeping stale results if offline?
+      if (offline_mode && !callsign_keep_stale_offline) {
+         log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry)", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
+         free(cd);
+         return NULL;
+      }
+   }
    return cd;
 }
 
