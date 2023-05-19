@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <yajl/yajl_tree.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <errno.h>
 
@@ -107,24 +108,33 @@ int free_config(yajl_val node) {
 //
 yajl_val load_config(void) {
    yajl_val rv = NULL;
-
+   char buf[PATH_MAX + 1];
 
    // try the source directory first, in case they're trying new version out..
-   if (is_file("etc/config.json")) {
-      if ((rv = parse_config("etc/config.json")) != NULL) {
+   memset(buf, 0, PATH_MAX + 1);
+   snprintf(buf, PATH_MAX, "etc/config.json");
+
+   memset(buf, 0, PATH_MAX + 1);
+   snprintf(buf, PATH_MAX, "etc/config.json");
+   if (is_file(buf)) {
+      if ((rv = parse_config(buf)) != NULL) {
          // using local config (./etc)
       }
    }
 
-   if (!rv && is_file("~/.callsign-lookup/config.json")) {
-      if ((rv = parse_config("~/.callsign-lookup/config.json")) != NULL) {
+   memset(buf, 0, PATH_MAX + 1);
+   snprintf(buf, PATH_MAX, "%s.json", progname);
+   if (is_file(buf)) {
+      if ((rv = parse_config(buf)) != NULL) {
          // using local config (pwd)
       }
    }
 
    // and then the global directory, if config in pwd wasn't found...
-   if (!rv && is_file("/etc/callsign-lookup.json")) {
-      if (rv == NULL && (rv = parse_config("/etc/callsign-lookup.json")) != NULL) {
+   memset(buf, 0, PATH_MAX + 1);
+   snprintf(buf, PATH_MAX, "/etc/%s/config.json", progname);
+   if (is_file(buf)) {
+      if ((rv = parse_config(buf)) != NULL) {
          // using global config
       }
    }
