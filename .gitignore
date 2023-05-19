@@ -1,0 +1,65 @@
+# Exclude build artifacts
+.git_timestamp
+obj/
+obj/*
+obj/*.map
+obj/*.o
+obj/*.so
+obj/*.so.*
+obj/*.a
+obj/*/*.map
+obj/*/*.o
+obj/*/*.so
+obj/*/*.so.*
+obj/*/*.a
+
+# Exclude binaries
+bin/ft8goblin
+bin/decoderd-*
+bin/encoderd-*
+bin/sigcapd
+bin/callsign-lookupd
+bin/flac-streamerd
+
+# These might contain sensitive user data...
+etc/watchlist.txt
+etc/config.json
+etc/*.db
+
+# built libraries
+lib/*.a
+lib/*.so
+lib/*.so.*
+lib/*.plugin
+lib/*.o
+
+# log files
+logs/?san.log.*
+logs/*.log
+logs/*.debug
+*.log
+
+# runtime created files that dont need to persist
+run/*
+run/*.pid
+run/*.pipe
+run/*.sock
+
+# Database sources are large and can be dealt with by the builder...
+data-sources/fcc-uls/fcc_uls_*/*
+data-sources/fcc-uls/*.zip
+data-sources/gnis/Text/*
+data-sources/gnis/disclaimer.txt
+data-sources/gnis/*.jpg
+data-sources/gnis/*.txt
+data-sources/gnis/*.zip
+data-sources/gnis/*.xml
+data-sources/gnis/*.7z
+
+##############
+# misc stuff #
+##############
+# Tests...
+qrztest*
+scripts/test/
+scripts/test/*

@@ -1,0 +1,30 @@
+This is just callsign-lookupd from ft8goblin extracted from the main source.
+
+BUILD
+-----
+This should only take a moment ;)
+	make -j10 world
+
+INSTALL
+-------
+
+Copy etc/config.example.json to ~/.callsign-lookupd.json and edit it.
+	mkdir -p ~/.callsign-lookup
+	cp -a etc/* ~/.callsign-lookup/
+	cp ~/.callsign-lookup/config{,.example}.json
+	$EDITOR ~/.callsign-lookup/config.json
+
+Install the program wherever you want (ex: systemwide path)
+	sudo install -m 0755 bin/callsign-lookup /usr/bin
+	sudo chown root:root /usr/bin
+
+Or maybe try make install. It wont create the user directory.. We'll automatically create this at startup soon...
+
+USAGE
+-----
+callsign-lookup CALLSIGN
+	Returns formatted, human and machine readable response with the callsign data and exits.
+
+
+callsign-lookup
+	Runs as a foreground process handling lookups
