@@ -46,7 +46,7 @@ static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
 
 // common shared things for our library
-const char *progname = "callsign-lookupd";
+const char *progname = "callsign-lookup";
 bool dying = 0;
 time_t now = -1;
 
@@ -365,6 +365,8 @@ calldata_t *callsign_cache_find(const char *callsign) {
              idx_cache_expiry = i;
           } else if (strcasecmp(cname, "cache_fetched") == 0) {
              idx_cache_fetched = i;
+          } else {
+             log_send(main_log, LOG_WARNING, "Unknown column: %d (%s)", i, cname);
           }
       }
 
@@ -718,7 +720,7 @@ int main(int argc, char **argv) {
    if (!(cfg = load_config()))
       exit_fix_config();
 
-   const char *logpath = dict_get(runtime_cfg, "logpath", "file://callsign-lookupd.log");
+   const char *logpath = dict_get(runtime_cfg, "logpath", "file://callsign-lookup.log");
 
    if (logpath != NULL) {
       mainlog = log_open(logpath);

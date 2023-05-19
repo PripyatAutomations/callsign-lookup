@@ -118,25 +118,33 @@ yajl_val load_config(void) {
    snprintf(buf, PATH_MAX, "etc/config.json");
    if (is_file(buf)) {
       if ((rv = parse_config(buf)) != NULL) {
-         // using local config (./etc)
+//         fprintf(stdout, "Using configuration in %s\n", buf);
       }
    }
 
    memset(buf, 0, PATH_MAX + 1);
    snprintf(buf, PATH_MAX, "%s.json", progname);
-   if (is_file(buf)) {
-      if ((rv = parse_config(buf)) != NULL) {
-         // using local config (pwd)
-      }
+   if (is_file(buf) && (rv = parse_config(buf)) != NULL) {
+//         fprintf(stdout, "Using configuration in %s\n", buf);
+   }
+
+   // try homedir
+   memset(buf, 0, PATH_MAX + 1);
+   snprintf(buf, PATH_MAX, "%s/.%s/config.json", getenv("HOME"), progname);
+   if (is_file(buf) && (rv = parse_config(buf)) != NULL) {
+//         fprintf(stdout, "Using configuration in %s\n", buf);
    }
 
    // and then the global directory, if config in pwd wasn't found...
    memset(buf, 0, PATH_MAX + 1);
    snprintf(buf, PATH_MAX, "/etc/%s/config.json", progname);
-   if (is_file(buf)) {
-      if ((rv = parse_config(buf)) != NULL) {
-         // using global config
-      }
+   if (is_file(buf) && (rv = parse_config(buf)) != NULL) {
+//         fprintf(stdout, "Using configuration in %s\n", buf);
+   }
+
+   if (rv == NULL) {
+      fprintf(stdout, "No configuration found\n");
+      exit(1);
    }
 
    if (cfg == NULL) {

@@ -7,9 +7,10 @@ POSTGRESQL=y
 
 termbox_lib_ver := 2.0.0
 
-bin_install_path := ${PREFIX}/bin
-etc_install_path ?= /etc/ft8goblin
-lib_install_path := ${PREFIX}/lib
+# not finished
+#bin_install_path := ${PREFIX}/bin
+#etc_install_path ?= /etc/ft8goblin
+#lib_install_path := ${PREFIX}/lib
 
 # required libraries: -l${x} will be expanded later...
 common_libs += yajl ev
