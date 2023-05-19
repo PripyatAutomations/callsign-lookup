@@ -116,16 +116,16 @@ yajl_val load_config(void) {
       }
    }
 
-   if (!rv && is_file("./config.json")) {
-      if ((rv = parse_config("./config.json")) != NULL) {
+   if (!rv && is_file("~/.callsign-lookup/config.json")) {
+      if ((rv = parse_config("~/.callsign-lookup/config.json")) != NULL) {
          // using local config (pwd)
       }
    }
 
    // and then the global directory, if config in pwd wasn't found...
-   if (!rv && is_file("/etc/ft8goblin/config.json")) {
-      if (rv == NULL && (rv = parse_config("/etc/ft8goblin/config.json")) != NULL) {
-         // using global (/etc/ft8goblin/) config
+   if (!rv && is_file("/etc/callsign-lookup.json")) {
+      if (rv == NULL && (rv = parse_config("/etc/callsign-lookup.json")) != NULL) {
+         // using global config
       }
    }
 
