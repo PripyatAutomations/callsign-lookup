@@ -133,7 +133,7 @@ static void callsign_lookup_setup(void) {
             // cache database was succesfully opened
             // XXX: Detect if we need to initialize it -- does table cache exist?
             // XXX: Initialize the tables using sql in sql/cache.sql
-            log_send(mainlog, LOG_INFO, "calldata cache database opened");
+//            log_send(mainlog, LOG_INFO, "calldata cache database opened");
          }
       }
    }
@@ -279,15 +279,13 @@ calldata_t *callsign_cache_find(const char *callsign) {
 
    // prepare the statement if it's not been done yet
    if (cache_select_stmt == NULL) {
-//      char *sql = "SELECT callsign, dxcc, aliases, first_name, last_name, addr1, addr2, state, zip, grid, country, latitude, longitude, county, class, codes, email, u_views, effective, expires, cache_expires, cache_fetched FROM cache WHERE callsign = ?;";
       char *sql = "SELECT * FROM cache WHERE callsign = UPPER(@CALL);";
-      log_send(mainlog, LOG_DEBUG, "sql query: %s", sql);
       rc = sqlite3_prepare(calldata_cache->hndl.sqlite3, sql, -1, &cache_select_stmt, 0);
 
       if (rc == SQLITE_OK) {
          rc = sqlite3_bind_text(cache_select_stmt, 1, callsign, -1, SQLITE_TRANSIENT);
          if (rc == SQLITE_OK) {
-            log_send(mainlog, LOG_DEBUG, "prepared cache SELECT statement succesfully");
+//            log_send(mainlog, LOG_DEBUG, "prepared cache SELECT statement succesfully");
          } else {
             log_send(mainlog, LOG_WARNING, "sqlite3_bind_text cache select callsign failed: %s", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
             free(cd);
@@ -347,7 +345,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
              idx_latitude = i;
           } else if (strcasecmp(cname, "longitude") == 0) {
              idx_longitude = i;
-          } else if (strcasecmp(cname, "countr") == 0) {
+          } else if (strcasecmp(cname, "county") == 0) {
              idx_county = i;
           } else if (strcasecmp(cname, "class") == 0) {
              idx_class = i;
@@ -365,8 +363,10 @@ calldata_t *callsign_cache_find(const char *callsign) {
              idx_cache_expiry = i;
           } else if (strcasecmp(cname, "cache_fetched") == 0) {
              idx_cache_fetched = i;
+          } else if (strcasecmp(cname, "cache_id") == 0) {
+             // skip
           } else {
-             log_send(main_log, LOG_WARNING, "Unknown column: %d (%s)", i, cname);
+             log_send(mainlog, LOG_DEBUG, "Unknown column: %d (%s)", i, cname);
           }
       }
 
@@ -620,13 +620,13 @@ static bool parse_request(const char *line) {
       fprintf(stderr, "200 OK\n");
       fprintf(stderr, "*** HELP ***\n");
       // XXX: Implement NOCACHE
-      fprintf(stderr, "CALLSIGN [CALLSIGN] [NOCACHE]\tLookup a callsign, (NYI) optionally without using the cache\n");
+      fprintf(stderr, "CALLSIGN <CALLSIGN> [NOCACHE]\tLookup a callsign, (NYI) optionally without using the cache\n");
       // XXX: Implement optional password
       fprintf(stderr, "EXIT\t\t\tShutdown the service\n");
       fprintf(stderr, "GOODBYE\t\tDisconnect from the service, leaving it running\n");
       fprintf(stderr, "HELP\t\t\tThis message\n");
       fprintf(stderr, "*** Planned ***\n");
-      fprintf(stderr, "GNIS [GRID|COORDS]\t\tLook up the place name for a grid or WGS-84 coordinate\n");
+      fprintf(stderr, "GNIS <GRID|COORDS>\t\tLook up the place name for a grid or WGS-84 coordinate\n");
    } else if (strncasecmp(line, "CALLSIGN", 8) == 0) {
       const char *callsign = line + 9;
 
@@ -640,9 +640,9 @@ static bool parse_request(const char *line) {
       } else {
          // Send the result
          calldata_dump(calldata, callsign);
+         free(calldata);
+         calldata = NULL;
       }
-      free(calldata);
-      calldata = NULL;
    } else if (strncasecmp(line, "EXIT", 4) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
       fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");
@@ -760,8 +760,13 @@ int main(int argc, char **argv) {
    if (argc > 1) {
       for (int i = 1; i <= (argc - 1); i++) {
          char *callsign = argv[i];
+         calldata_t *calldata = NULL;
 
-         calldata_t *calldata = callsign_lookup(callsign);
+         if (argv[i] != NULL) {
+            calldata = callsign_lookup(callsign);
+         } else {
+            break;
+         }
 
          if (calldata == NULL) {
             fprintf(stdout, "404 NOT FOUND %lu %s\n", now, callsign);
@@ -769,17 +774,16 @@ int main(int argc, char **argv) {
             // give error status for scripts
             exit(1);
          } else {
-            // Send the result
             calldata_dump(calldata, callsign);
+            free(calldata);
+            calldata = NULL;
          }
-         free(calldata);
-         calldata = NULL;
       }
       fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");
 
       dying = true;
    } else {
-      log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s\n", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
+      log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
    }
    while(!dying) {
       ev_run(loop, 0);

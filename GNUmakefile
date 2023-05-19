@@ -1,4 +1,4 @@
-VERSION = 20230512
+VERSION = 20230519
 all: world
 bins := callsign-lookup
 
@@ -12,7 +12,7 @@ common_objs += util.o
 common_objs += maidenhead.o	# maidenhead coordinate tools
 
 extra_distclean += etc/calldata-cache.db etc/fcc-uls.db
-callsign_lookup_objs += callsign-lookupd.o
+callsign_lookup_objs += callsign-lookup.o
 callsign_lookup_objs += fcc-db.o
 callsign_lookup_objs += gnis-lookup.o	# place names database
 callsign_lookup_objs += qrz-xml.o	# QRZ XML API callsign lookups (paid)
