@@ -52,8 +52,59 @@ bool dying = 0;
 time_t now = -1;
 
 time_t timestr2time_t(const char *str) {
-   time_t ret = 86400;
-   return ret;
+   time_t seconds = 0;
+   char *copy = NULL;
+
+   if (str == NULL) {
+      fprintf(stderr, "timestr2time_t: passed NULL str\n");
+      return 0;
+   }
+   
+   size_t len = strlen(str);
+   if ((copy = malloc(len + 1)) == NULL) {
+      fprintf(stderr, "timestr2time_t: out of memory\n");
+      exit(ENOMEM);
+   }
+
+   memset(copy, 0, len + 1);
+   memcpy(copy, str, len);
+
+   char *multipliers = "ywdhms";
+   char *ptr = copy;
+
+   while (*ptr != '\0') {
+      // Find the numeric value and extract the unit character
+      int value = strtol(ptr, &ptr, 10);
+      char unit = *ptr;
+
+//      fprintf(stderr, "val: %d, unit: %c\n, copy: %p, ptr: %p (%lu)", value, unit, copy, ptr, (ptr - copy));
+
+      switch (unit) {
+         case 'y':
+            seconds += value * 365 * 24 * 60 * 60;  // Convert years to seconds (assuming 365 days per year)
+            break;
+         case 'w':
+            seconds += value * 7 * 24 * 60 * 60;  // Convert weeks to seconds
+            break;
+         case 'd':
+            seconds += value * 24 * 60 * 60;  // Convert days to seconds
+            break;
+         case 'h':
+            seconds += value * 60 * 60;  // Convert hours to seconds
+            break;
+         case 'm':
+            seconds += value * 60;  // Convert minutes to seconds
+            break;
+         case 's':
+            seconds += value;  // Add seconds
+            break;
+      }
+
+      ptr++;  // Move to the next character
+   }
+
+   free(copy);  // Free the memory allocated for the copy
+   return seconds;
 }
 
 bool str2bool(const char *str, bool def) {
