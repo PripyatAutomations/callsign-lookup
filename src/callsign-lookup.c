@@ -313,12 +313,9 @@ calldata_t *callsign_cache_find(const char *callsign) {
    if (step == SQLITE_ROW || step == SQLITE_DONE) {
       // Find column names, so we can avoid trying to refer to them by number
       int cols = sqlite3_column_count(cache_select_stmt);
-//      log_send(mainlog, LOG_DEBUG, "cols: %d\n", cols);
 
       for (int i = 0; i < cols; i++) {
           const char *cname = sqlite3_column_name(cache_select_stmt, i);
-//          log_send(mainlog, LOG_DEBUG, "%d: %s\n", cols, cname);
-
           if (strcasecmp(cname, "callsign") == 0) {
              idx_callsign = i;
           } else if (strcasecmp(cname, "dxcc") == 0) {
@@ -373,7 +370,13 @@ calldata_t *callsign_cache_find(const char *callsign) {
       // Copy the data into the calldata_t
       cd->origin = DATASRC_CACHE;
       cd->cached = true;
-      snprintf(cd->callsign, MAX_CALLSIGN, "%s", sqlite3_column_text(cache_select_stmt, idx_callsign));
+      const unsigned char *cs = sqlite3_column_text(cache_select_stmt, idx_callsign);
+      if (cs == NULL) {
+         log_send(mainlog, LOG_CRIT, "NULL data");
+         free(cd);
+         return NULL;
+      }
+      snprintf(cd->callsign, MAX_CALLSIGN, "%s", cs);
       snprintf(cd->aliases, MAX_QRZ_ALIASES, "%s", sqlite3_column_text(cache_select_stmt, idx_aliases));
       snprintf(cd->first_name, MAX_FIRSTNAME, "%s", sqlite3_column_text(cache_select_stmt, idx_fname));
       snprintf(cd->last_name, MAX_LASTNAME, "%s", sqlite3_column_text(cache_select_stmt, idx_lname));
