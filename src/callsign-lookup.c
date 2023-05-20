@@ -45,6 +45,7 @@ static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
+static sqlite3_stmt *cache_expire_stmt = NULL;
 
 // common shared things for our library
 const char *progname = "callsign-lookup";
@@ -122,6 +123,10 @@ static void fini(void) {
 
    if (cache_select_stmt != NULL) {
       sqlite3_finalize(cache_select_stmt);
+   }
+
+   if (cache_expire_stmt != NULL) {
+      sqlite3_finalize(cache_expire_stmt);
    }
 
    exit(0);
@@ -463,6 +468,8 @@ calldata_t *callsign_cache_find(const char *callsign) {
          log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry)", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
          free(cd);
          return NULL;
+      } else {
+         log_send(mainlog, LOG_WARNING, "returning stale result for %s (%lu old)", cd->callsign, (cd->cache_expiry - now));
       }
    }
    return cd;
@@ -766,9 +773,30 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
     }
 }
 
+char expiry_sql[256];
+void run_sql_expire(void) {
+   int rc = 0;
+
+   if (cache_expire_stmt == NULL) {
+      memset(expiry_sql, 0, 256);
+      snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
+      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
+
+      if (rc == SQLITE_OK) {
+         // XXX: show affected rows
+         int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
+         fprintf(stderr, "cache expiry done: %d changes!\n", changes);
+      }
+   }
+}
+
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
-   // update our shared timestamp
-   now = time(NULL);
+   now = time(NULL);			   // update our shared timestamp
+
+   // every 3 hours, do the thing
+   if (now % 10800) {
+      run_sql_expire();
+   }
 }
 
 int main(int argc, char **argv) {
@@ -849,7 +877,13 @@ int main(int argc, char **argv) {
    } else {
       log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
    }
+
    while(!dying) {
+      // XXX: Check if we're online first
+      // run expiry once per hour
+      if (now % 3600) {
+         run_sql_expire();
+      }
       ev_run(loop, 0);
 
       // if ev loop exits, we need to die..
@@ -861,6 +895,7 @@ int main(int argc, char **argv) {
       sql_close(calldata_cache);
       calldata_cache = NULL;
    }
+
    if (calldata_uls != NULL) {
       sql_close(calldata_uls);
       calldata_uls = NULL;
