@@ -570,8 +570,31 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
    fprintf(stdout, "Cached: %s\n", (calldata->cached ? "true" : "false"));
    if (calldata->cached) {
-      fprintf(stdout, "Cache-Fetched: %lu\n", calldata->cache_fetched);
-      fprintf(stdout, "Cache-Expiry: %lu\n", calldata->cache_expiry);
+      char fetched[128], expiry[128];
+      struct tm *tm_fetched, *tm_expiry;
+      memset(fetched, 0, 128);
+      memset(expiry, 0, 128);
+
+      if ((tm_fetched = localtime(&calldata->cache_fetched)) == NULL) {
+         log_send(mainlog, LOG_CRIT, "localtime() failed");
+         exit(255);
+      }
+      if ((tm_expiry = localtime(&calldata->cache_expiry)) == NULL) {
+         log_send(mainlog, LOG_CRIT, "localtime() failed");
+         exit(255);
+      }
+
+      if (strftime(fetched, 128, "%Y/%m/%d", tm_fetched) == 0 && errno != 0) {
+         log_send(mainlog, LOG_CRIT, "strftime() failed");
+         exit(254);
+      }
+      if (strftime(expiry, 128, "%Y/%m/%d", tm_expiry) == 0 && errno != 0) {
+         log_send(mainlog, LOG_CRIT, "strftime() failed");
+         exit(254);
+      }
+
+      fprintf(stdout, "Cache-Fetched: %s\n", fetched);
+      fprintf(stdout, "Cache-Expiry: %s\n", expiry);
    }
 
    if (calldata->first_name[0] != '\0') {
