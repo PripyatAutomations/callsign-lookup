@@ -45,6 +45,7 @@ static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
+static sqlite3_stmt *cache_expire_stmt = NULL;
 
 // common shared things for our library
 const char *progname = "callsign-lookup";
@@ -122,6 +123,10 @@ static void fini(void) {
 
    if (cache_select_stmt != NULL) {
       sqlite3_finalize(cache_select_stmt);
+   }
+
+   if (cache_expire_stmt != NULL) {
+      sqlite3_finalize(cache_expire_stmt);
    }
 
    exit(0);
@@ -424,7 +429,6 @@ calldata_t *callsign_cache_find(const char *callsign) {
       cd->cached = true;
       const unsigned char *cs = sqlite3_column_text(cache_select_stmt, idx_callsign);
       if (cs == NULL) {
-         log_send(mainlog, LOG_CRIT, "NULL data");
          free(cd);
          return NULL;
       }
@@ -463,6 +467,8 @@ calldata_t *callsign_cache_find(const char *callsign) {
          log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry)", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
          free(cd);
          return NULL;
+      } else {
+         log_send(mainlog, LOG_WARNING, "returning stale result for %s (%lu old)", cd->callsign, (cd->cache_expiry - now));
       }
    }
    return cd;
@@ -562,9 +568,54 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
    fprintf(stdout, "Callsign: %s\n", calldata->callsign);
 
    fprintf(stdout, "Cached: %s\n", (calldata->cached ? "true" : "false"));
+
+   struct tm *cache_fetched_tm;
+   struct tm *cache_expiry_tm;
+
    if (calldata->cached) {
-      fprintf(stdout, "Cache-Fetched: %lu\n", calldata->cache_fetched);
-      fprintf(stdout, "Cache-Expiry: %lu\n", calldata->cache_expiry);
+      if (calldata->cache_fetched > 0) {
+         cache_fetched_tm = localtime(&calldata->cache_fetched);
+
+         if (cache_fetched_tm == NULL) {
+            log_send(mainlog, LOG_DEBUG, "calldata_dump: failed converting cache_fetched to tm");
+         } else {
+            char fetched_buf[129];
+            memset(fetched_buf, 0, 129);
+
+            size_t fetched_ret = -1;
+            if ((fetched_ret = strftime(fetched_buf, 128, "%Y/%m/%d", cache_fetched_tm)) == 0) {
+               if (errno != 0) {
+                  log_send(mainlog, LOG_DEBUG, "calldata_dump: strfime license effective failed: %d: %s", errno, strerror(errno));
+               }
+            } else {
+               fprintf(stdout, "Cache-Fetched: %s\n", fetched_buf);
+            }
+         }
+      } else {
+         fprintf(stdout, "Catch-Fetched: UNKNOWN\n");
+      }
+
+      if (calldata->cache_expiry > 0) {
+         cache_expiry_tm = localtime(&calldata->license_expiry);
+
+         if (cache_expiry_tm == NULL) {
+            log_send(mainlog, LOG_DEBUG, "calldata_dump: failed converting cache expiry to tm");
+         } else {
+            char fetched_buf[129];
+            memset(fetched_buf, 0, 129);
+
+            size_t ret = -1;
+            if ((ret = strftime(fetched_buf, 128, "%Y/%m/%d", cache_expiry_tm)) == 0) {
+               if (errno != 0) {
+                  log_send(mainlog, LOG_DEBUG, "calldata_dump: strfime cache expiry failed: %d: %s", errno, strerror(errno));
+               }
+            } else {
+               fprintf(stdout, "Catch-Expiry: %s\n", fetched_buf);
+            }
+         }
+      } else {
+         fprintf(stdout, "Catch-Expiry: UNKNOWN\n");
+      }
    }
 
    if (calldata->first_name[0] != '\0') {
@@ -766,9 +817,36 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
     }
 }
 
+char expiry_sql[256];
+void run_sql_expire(void) {
+   int rc = 0;
+
+   if (cache_expire_stmt == NULL) {
+      memset(expiry_sql, 0, 256);
+      snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
+      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
+
+      if (rc != SQLITE_OK) {
+         sqlite3_reset(cache_insert_stmt);
+         log_send(mainlog, LOG_WARNING, "Error preparing statement for cache expiry: %s\n", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
+      }
+   } else {
+      sqlite3_reset(cache_insert_stmt);
+      sqlite3_clear_bindings(cache_insert_stmt);
+   }
+
+   rc = sqlite3_step(cache_expire_stmt);
+   int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
+   log_send(mainlog, LOG_INFO, "cache expiry done: %d changes!", changes);
+}
+
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
-   // update our shared timestamp
-   now = time(NULL);
+   now = time(NULL);			   // update our shared timestamp
+
+   // every 3 hours, do the thing
+   if (now % 10800) {
+      run_sql_expire();
+   }
 }
 
 int main(int argc, char **argv) {
@@ -819,6 +897,7 @@ int main(int argc, char **argv) {
       }
    }
    printf("+OK %s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s\n", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
+   run_sql_expire();
 
    // if called with callsign(s) as args, look them up, return the parsed output and exit
    if (argc > 1) {
@@ -849,7 +928,13 @@ int main(int argc, char **argv) {
    } else {
       log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
    }
+
    while(!dying) {
+      // XXX: Check if we're online first
+      // run expiry once per hour
+      if (now % 3600) {
+         run_sql_expire();
+      }
       ev_run(loop, 0);
 
       // if ev loop exits, we need to die..
@@ -861,6 +946,7 @@ int main(int argc, char **argv) {
       sql_close(calldata_cache);
       calldata_cache = NULL;
    }
+
    if (calldata_uls != NULL) {
       sql_close(calldata_uls);
       calldata_uls = NULL;
