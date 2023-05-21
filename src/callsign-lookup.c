@@ -809,12 +809,12 @@ void run_sql_expire(void) {
       rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
 
       if (rc != SQLITE_OK) {
-         sqlite3_reset(cache_insert_stmt);
+         sqlite3_reset(cache_expire_stmt);
          log_send(mainlog, LOG_WARNING, "Error preparing statement for cache expiry: %s\n", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
       }
    } else {
-      sqlite3_reset(cache_insert_stmt);
-      sqlite3_clear_bindings(cache_insert_stmt);
+      sqlite3_reset(cache_expire_stmt);
+      sqlite3_clear_bindings(cache_expire_stmt);
    }
 
    rc = sqlite3_step(cache_expire_stmt);
