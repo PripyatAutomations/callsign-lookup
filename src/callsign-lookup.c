@@ -573,6 +573,7 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
    struct tm *cache_expiry_tm;
 
    if (calldata->cached) {
+<<<<<<< HEAD
       if (calldata->cache_fetched > 0) {
          cache_fetched_tm = localtime(&calldata->cache_fetched);
 
@@ -616,6 +617,33 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
       } else {
          fprintf(stdout, "Catch-Expiry: UNKNOWN\n");
       }
+=======
+      char fetched[128], expiry[128];
+      struct tm *tm_fetched, *tm_expiry;
+      memset(fetched, 0, 128);
+      memset(expiry, 0, 128);
+
+      if ((tm_fetched = localtime(&calldata->cache_fetched)) == NULL) {
+         log_send(mainlog, LOG_CRIT, "localtime() failed");
+         exit(255);
+      }
+      if ((tm_expiry = localtime(&calldata->cache_expiry)) == NULL) {
+         log_send(mainlog, LOG_CRIT, "localtime() failed");
+         exit(255);
+      }
+
+      if (strftime(fetched, 128, "%Y/%m/%d", tm_fetched) == 0 && errno != 0) {
+         log_send(mainlog, LOG_CRIT, "strftime() failed");
+         exit(254);
+      }
+      if (strftime(expiry, 128, "%Y/%m/%d", tm_expiry) == 0 && errno != 0) {
+         log_send(mainlog, LOG_CRIT, "strftime() failed");
+         exit(254);
+      }
+
+      fprintf(stdout, "Cache-Fetched: %s\n", fetched);
+      fprintf(stdout, "Cache-Expiry: %s\n", expiry);
+>>>>>>> b9ed06e7192dfaf58fe2632cadb718fe79f9257e
    }
 
    if (calldata->first_name[0] != '\0') {
@@ -826,6 +854,7 @@ void run_sql_expire(void) {
       snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
       rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
 
+<<<<<<< HEAD
       if (rc != SQLITE_OK) {
          sqlite3_reset(cache_insert_stmt);
          log_send(mainlog, LOG_WARNING, "Error preparing statement for cache expiry: %s\n", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
@@ -838,6 +867,14 @@ void run_sql_expire(void) {
    rc = sqlite3_step(cache_expire_stmt);
    int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
    log_send(mainlog, LOG_INFO, "cache expiry done: %d changes!", changes);
+=======
+      if (rc == SQLITE_OK) {
+         // XXX: show affected rows
+         int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
+         fprintf(stderr, "cache expiry done: %d changes!\n", changes);
+      }
+   }
+>>>>>>> b9ed06e7192dfaf58fe2632cadb718fe79f9257e
 }
 
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {

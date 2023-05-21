@@ -153,6 +153,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
       char datebuf[128];
       struct tm *tm;
       memset(datebuf, 0, 128);
+
       if ((tm = localtime(&q->sub_expiration)) == NULL) {
          log_send(mainlog, LOG_CRIT, "localtime() failed");
          exit(255);

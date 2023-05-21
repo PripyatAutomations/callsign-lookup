@@ -1,4 +1,5 @@
 VERSION = 20230519
+CC := clang
 all: world
 bins := callsign-lookup
 
@@ -30,7 +31,7 @@ extra_clean += ${real_bins} ${ft8lib} ${ft8lib_objs}
 #################
 bin/callsign-lookup: ${callsign_lookup_real_objs}
 	@echo "[Linking] $@"
-	@${CC} -o $@ ${callsign_lookup_real_objs} ${callsign_lookup_ldflags} ${LDFLAGS}
+	${CC} -o $@ ${callsign_lookup_real_objs} ${callsign_lookup_ldflags} ${LDFLAGS}
 
 etc/calldata-cache.db:
 	sqlite3 etc/calldata-cache.db < sql/cache.sql 

@@ -1,5 +1,9 @@
 This is just callsign-lookupd from ft8goblin extracted from the main source.
 
+PREREQS
+-------
+	apt install libspatialite-dev libyajl-dev libsqlite3-dev libcurl4-gnutls-dev
+
 BUILD
 -----
 This should only take a moment ;)
