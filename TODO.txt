@@ -1,0 +1,4 @@
+* Implement offline mode
+	* If cant reach QRZ, set offline flag
+	* Wait callsign-lookup/retry-delay before trying to reconnect
+	* If succesfull connect, clear offline flag

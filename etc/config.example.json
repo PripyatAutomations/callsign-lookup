@@ -16,6 +16,7 @@
       "cache-db": "sqlite3:/home/user/.callsign-lookup/calldata-cache.db",
       "cache-online-lookups": "true",
       "cache-expiry": "3d",
+      "retry-delay": "30m",
       "cache-keep-stale-if-offline": "true",
       "use-lotw-activity": "false",
       "lotw-url": "https://lotw.arrl.org/lotw-user-activity.csv",

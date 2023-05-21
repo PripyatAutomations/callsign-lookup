@@ -40,7 +40,8 @@ static bool callsign_use_uls = false, callsign_use_qrz = false,
             callsign_initialized = false, callsign_use_cache = false;
 static const char *callsign_cache_db = NULL;
 static time_t callsign_cache_expiry = 86400 * 3;		// 3 days
-static bool offline_mode = false, callsign_keep_stale_offline = false;
+static time_t online_mode_retry = 0, online_last_retry = 0;
+static bool offline = false, callsign_keep_stale_offline = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static sqlite3_stmt *cache_insert_stmt = NULL;
@@ -463,7 +464,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
    // is it expired?
    if (cd->cache_expiry <= now) {
       // are we offline? are we keeping stale results if offline?
-      if (offline_mode && !callsign_keep_stale_offline) {
+      if (offline && !callsign_keep_stale_offline) {
          log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry)", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
          free(cd);
          return NULL;
@@ -476,6 +477,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
 
 calldata_t *callsign_lookup(const char *callsign) {
    bool from_cache = false;
+   bool res = false;
    calldata_t *qr = NULL;
 
    // has callsign_lookup_setup() been called yet?
@@ -489,8 +491,23 @@ calldata_t *callsign_lookup(const char *callsign) {
       from_cache = true;
    }
 
+   // XXX: If offline, check last online_last_retry and if it's been long
+   // XXX: enough, try to reconnect before the QRZ check
+   if (offline && (online_last_retry + online_mode_retry <= now)) {
+      if (callsign_use_qrz) {
+         res = qrz_start_session();
+         online_last_retry = now;
+
+         if (res == false) {
+            log_send(mainlog, LOG_CRIT, "Failed logging into QRZ! :(");
+            offline = true;
+         } else {
+            offline = false;
+         }
+      }
+   }
    // nope, check QRZ XML API, if the user has an account
-   if (callsign_use_qrz && qr == NULL) {
+   if (!offline && callsign_use_qrz && qr == NULL) {
       if ((qr = qrz_lookup_callsign(callsign)) != NULL) {
          log_send(mainlog, LOG_DEBUG, "got qrz calldata for %s", callsign);
       }
@@ -819,7 +836,7 @@ void run_sql_expire(void) {
 
    rc = sqlite3_step(cache_expire_stmt);
    int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
-   log_send(mainlog, LOG_INFO, "cache expiry done: %d changes!", changes);
+   log_send(mainlog, LOG_DEBUG, "cache expiry done: %d changes!", changes);
 }
 
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
@@ -845,6 +862,12 @@ int main(int argc, char **argv) {
       exit_fix_config();
 
    const char *logpath = dict_get(runtime_cfg, "logpath", "file://callsign-lookup.log");
+
+   // how often should we retry going online?
+   online_mode_retry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/retry-delay"));
+   if (online_mode_retry < 30) { // enforce a minimum of 30 seconds between retries
+      online_mode_retry = 30;
+   }
 
    if (logpath != NULL) {
       mainlog = log_open(logpath);
@@ -875,10 +898,14 @@ int main(int argc, char **argv) {
 
       if (res == false) {
          log_send(mainlog, LOG_CRIT, "Failed logging into QRZ! :(");
-         exit(EACCES);
+      } else {
+         offline = false;
       }
    }
-   printf("+OK %s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s\n", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
+   printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n",
+         progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (offline ? " (offline)" : ""),
+         (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
+         (callsign_use_cache ? "On" : "Off"));
    run_sql_expire();
 
    // if called with callsign(s) as args, look them up, return the parsed output and exit
