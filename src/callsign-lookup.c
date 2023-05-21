@@ -573,51 +573,6 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
    struct tm *cache_expiry_tm;
 
    if (calldata->cached) {
-<<<<<<< HEAD
-      if (calldata->cache_fetched > 0) {
-         cache_fetched_tm = localtime(&calldata->cache_fetched);
-
-         if (cache_fetched_tm == NULL) {
-            log_send(mainlog, LOG_DEBUG, "calldata_dump: failed converting cache_fetched to tm");
-         } else {
-            char fetched_buf[129];
-            memset(fetched_buf, 0, 129);
-
-            size_t fetched_ret = -1;
-            if ((fetched_ret = strftime(fetched_buf, 128, "%Y/%m/%d", cache_fetched_tm)) == 0) {
-               if (errno != 0) {
-                  log_send(mainlog, LOG_DEBUG, "calldata_dump: strfime license effective failed: %d: %s", errno, strerror(errno));
-               }
-            } else {
-               fprintf(stdout, "Cache-Fetched: %s\n", fetched_buf);
-            }
-         }
-      } else {
-         fprintf(stdout, "Catch-Fetched: UNKNOWN\n");
-      }
-
-      if (calldata->cache_expiry > 0) {
-         cache_expiry_tm = localtime(&calldata->license_expiry);
-
-         if (cache_expiry_tm == NULL) {
-            log_send(mainlog, LOG_DEBUG, "calldata_dump: failed converting cache expiry to tm");
-         } else {
-            char fetched_buf[129];
-            memset(fetched_buf, 0, 129);
-
-            size_t ret = -1;
-            if ((ret = strftime(fetched_buf, 128, "%Y/%m/%d", cache_expiry_tm)) == 0) {
-               if (errno != 0) {
-                  log_send(mainlog, LOG_DEBUG, "calldata_dump: strfime cache expiry failed: %d: %s", errno, strerror(errno));
-               }
-            } else {
-               fprintf(stdout, "Catch-Expiry: %s\n", fetched_buf);
-            }
-         }
-      } else {
-         fprintf(stdout, "Catch-Expiry: UNKNOWN\n");
-      }
-=======
       char fetched[128], expiry[128];
       struct tm *tm_fetched, *tm_expiry;
       memset(fetched, 0, 128);
@@ -643,7 +598,6 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
       fprintf(stdout, "Cache-Fetched: %s\n", fetched);
       fprintf(stdout, "Cache-Expiry: %s\n", expiry);
->>>>>>> b9ed06e7192dfaf58fe2632cadb718fe79f9257e
    }
 
    if (calldata->first_name[0] != '\0') {
@@ -854,7 +808,6 @@ void run_sql_expire(void) {
       snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
       rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
 
-<<<<<<< HEAD
       if (rc != SQLITE_OK) {
          sqlite3_reset(cache_insert_stmt);
          log_send(mainlog, LOG_WARNING, "Error preparing statement for cache expiry: %s\n", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
@@ -867,14 +820,6 @@ void run_sql_expire(void) {
    rc = sqlite3_step(cache_expire_stmt);
    int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
    log_send(mainlog, LOG_INFO, "cache expiry done: %d changes!", changes);
-=======
-      if (rc == SQLITE_OK) {
-         // XXX: show affected rows
-         int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
-         fprintf(stderr, "cache expiry done: %d changes!\n", changes);
-      }
-   }
->>>>>>> b9ed06e7192dfaf58fe2632cadb718fe79f9257e
 }
 
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
