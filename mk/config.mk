@@ -18,7 +18,7 @@ WARN_FLAGS := -Wall -pedantic -Wno-unused-variable -Wno-unused-function #-Wno-mi
 ERROR_FLAGS += -Werror 
 # Sanitizer options
 SAN_FLAGS := -fsanitize=address
-SAN_LDFLAGS := -fsanitize=address
+SAN_LDFLAGS := -fsanitize=address -static-libasan
 OPT_FLAGS += -ggdb3 -fno-omit-frame-pointer
 endif
 OPT_FLAGS += -O2
