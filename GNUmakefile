@@ -42,7 +42,10 @@ include mk/clean.mk
 include mk/install.mk
 
 # Build all subdirectories first, then our binary
-world: ${extra_build_targets} ${real_bins}
+prebuild:
+	mkdir -p obj
+
+world: prebuild ${extra_build_targets} ${real_bins}
 
 todo:
 	# We would use find here, but there's probably XXX: in subdirs we don't care about...
