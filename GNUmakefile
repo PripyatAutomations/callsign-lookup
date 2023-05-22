@@ -50,5 +50,3 @@ world: prebuild ${extra_build_targets} ${real_bins}
 todo:
 	# We would use find here, but there's probably XXX: in subdirs we don't care about...
 	grep -Hn "XXX:" include/* src/* * etc/* sql/* scripts/* mk/* 2>/dev/null | less
-
-#
