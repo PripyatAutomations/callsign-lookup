@@ -19,11 +19,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-   typedef struct Coordinates {
-      float	latitude;
-      float	longitude;
-   } Coordinates;
-
    // Only FT4 and FT8 are supported by ft8_lib, but we can talk to ardop
    typedef enum {
      TX_MODE_NONE = 0,

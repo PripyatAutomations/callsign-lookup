@@ -26,6 +26,7 @@
 #include "fcc-db.h"
 #include "qrz-xml.h"
 #include "sql.h"
+#include "maidenhead.h"
 
 // Local types.. Gross!
 #define BUFFER_SIZE 1024
@@ -47,6 +48,8 @@ static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
 static sqlite3_stmt *cache_expire_stmt = NULL;
+static const char *my_grid = NULL;
+static Coordinates my_coords = { 0, 0 };
 
 // common shared things for our library
 const char *progname = "callsign-lookup";
@@ -326,7 +329,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
    if (callsign == NULL) {
       log_send(mainlog, LOG_CRIT, "callsign_cache_find: callsign == NULL");
       return NULL;
-   }
+      }
 
    // try to allocate memory for the calldata_t structure
    if ((cd = malloc(sizeof(calldata_t))) == NULL) {
@@ -623,6 +626,36 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
       fprintf(stdout, "Name: %s %s\n", calldata->first_name, calldata->last_name);
    }
 
+   if (calldata->grid[0] != 0) {
+      fprintf(stdout, "Grid: %s\n", calldata->grid);
+   }
+
+   if (calldata->latitude != 0 && calldata->longitude != 0) {
+      fprintf(stdout, "WGS-84: %.3f, %.3f\n", calldata->latitude, calldata->longitude);
+   }
+
+   // get distance and bearing
+   if (my_grid != NULL) {
+      if (my_coords.latitude == 0 && my_coords.longitude == 0) {
+         my_coords = maidenhead2latlon(my_grid);
+         log_send(mainlog, LOG_DEBUG, "mygrid: %s = %f, %f", my_grid, my_coords.latitude, my_coords.longitude);
+      }
+      if (calldata->latitude != 0 && calldata->longitude != 0) {
+         double distance = calculateDistance(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
+         double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
+
+         if (distance > 0 && bearing > 0) {
+            fprintf(stdout, "Heading: %.2f km at %.2f degrees\n", distance, bearing);
+         }
+      } else {
+/* XXX: Figure it out from gridsquare
+         Coordinates *call_coord =
+         if (calldata->grid[0] != '\0') {
+            Coordinates *
+*/
+      }
+   }
+
    if (calldata->alias_count > 0 && (calldata->aliases[0] != '\0')) {
       fprintf(stdout, "Aliases: %d: %s\n", calldata->alias_count, calldata->aliases);
    }
@@ -633,14 +666,6 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
    if (calldata->email[0] != '\0') {
       fprintf(stdout, "Email: %s\n", calldata->email);
-   }
-
-   if (calldata->grid[0] != 0) {
-      fprintf(stdout, "Grid: %s\n", calldata->grid);
-   }
-
-   if (calldata->latitude != 0 && calldata->longitude != 0) {
-      fprintf(stdout, "WGS-84: %f, %f\n", calldata->latitude, calldata->longitude);
    }
 
    if (calldata->address1[0] != '\0') {
@@ -751,8 +776,6 @@ static bool parse_request(const char *line) {
       if (calldata == NULL) {
          fprintf(stdout, "404 NOT FOUND %lu %s\n", now, callsign);
          log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", callsign);
-         // give error status for scripts
-         exit(1);
       } else {
          // Send the result
          calldata_dump(calldata, callsign);
@@ -835,8 +858,6 @@ void run_sql_expire(void) {
       sqlite3_reset(cache_expire_stmt);
       sqlite3_clear_bindings(cache_expire_stmt);
    }
-
-   rc = sqlite3_step(cache_expire_stmt);
    int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
    log_send(mainlog, LOG_DEBUG, "cache expiry done: %d changes!", changes);
 }
@@ -870,6 +891,8 @@ int main(int argc, char **argv) {
    if (online_mode_retry < 30) { // enforce a minimum of 30 seconds between retries
       online_mode_retry = 30;
    }
+
+   my_grid = cfg_get_str(cfg, "site/gridsquare");
 
    if (logpath != NULL) {
       mainlog = log_open(logpath);
@@ -916,8 +939,6 @@ int main(int argc, char **argv) {
          if (calldata == NULL) {
             fprintf(stdout, "404 NOT FOUND %lu %s\n", now, callsign);
             log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", callsign);
-            // give error status for scripts
-            exit(1);
          } else {
             calldata_dump(calldata, callsign);
             free(calldata);
