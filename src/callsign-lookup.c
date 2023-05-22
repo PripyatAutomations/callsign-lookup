@@ -637,7 +637,27 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
    // get distance and bearing
    if (my_grid != NULL) {
       if (my_coords.latitude == 0 && my_coords.longitude == 0) {
-         my_coords = maidenhead2latlon(my_grid);
+//         my_coords = maidenhead2latlon(my_grid);
+         const char *coords = cfg_get_str(cfg, "site/coordinates");
+         if (coords != NULL) {
+            const char *comma = strchr(coords, ',');
+            if (comma == NULL) {
+               log_send(mainlog, LOG_CRIT, "cfg:site/coordinates is invalid (missing comma)!");
+            } else {
+               comma++;	// skip the comma
+
+               if (comma == NULL) {		// this is an error
+                  log_send(mainlog, LOG_CRIT, "cfg:site/coordinates is invalid (no value after comma)!");
+               } else  if (*comma == ' ') {	// trim leading white space
+                   while (*comma == ' ') {
+                      comma++;
+                   }
+               }
+               float lat = atof(coords);	// this stops at the comma after latitude
+               float lon = atof(comma);		// this stops at any text after longitude
+               log_send(mainlog, LOG_DEBUG, "lat: %.3f, lon: %.3f\n", lat, lon);
+            }
+         }
          log_send(mainlog, LOG_DEBUG, "mygrid: %s = %f, %f", my_grid, my_coords.latitude, my_coords.longitude);
       }
       if (calldata->latitude != 0 && calldata->longitude != 0) {
