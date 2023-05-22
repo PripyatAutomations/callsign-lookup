@@ -41,7 +41,7 @@ static bool callsign_use_uls = false, callsign_use_qrz = false,
 static const char *callsign_cache_db = NULL;
 static time_t callsign_cache_expiry = 86400 * 3;		// 3 days
 static time_t online_mode_retry = 0, online_last_retry = 0;
-static bool offline = false, callsign_keep_stale_offline = false;
+static bool offline = false, callsign_keep_stale_offline = false, qrz_active = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static sqlite3_stmt *cache_insert_stmt = NULL;
@@ -494,14 +494,16 @@ calldata_t *callsign_lookup(const char *callsign) {
    // XXX: If offline, check last online_last_retry and if it's been long
    // XXX: enough, try to reconnect before the QRZ check
    if (offline && (online_last_retry + online_mode_retry <= now)) {
-      if (callsign_use_qrz) {
+      if (callsign_use_qrz && !qrz_active) {
          res = qrz_start_session();
+         qrz_active = true;
          online_last_retry = now;
 
+         // if logging into qrz failed, set offline mode
          if (res == false) {
-            log_send(mainlog, LOG_CRIT, "Failed logging into QRZ! :(");
+            log_send(mainlog, LOG_CRIT, "Failed logging into QRZ, setting offline mode!");
             offline = true;
-         } else {
+         } else {	// if we logged in, clear offline mode
             offline = false;
          }
       }
@@ -842,8 +844,8 @@ void run_sql_expire(void) {
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
    now = time(NULL);			   // update our shared timestamp
 
-   // every 3 hours, do the thing
-   if (now % 10800) {
+   // every 3 hours, run cache expire
+   if ((now % 10800) == 0) {
       run_sql_expire();
    }
 }
@@ -893,15 +895,6 @@ int main(int argc, char **argv) {
 
    callsign_lookup_setup();
 
-   if (callsign_use_qrz) {
-      res = qrz_start_session();
-
-      if (res == false) {
-         log_send(mainlog, LOG_CRIT, "Failed logging into QRZ! :(");
-      } else {
-         offline = false;
-      }
-   }
    printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n",
          progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (offline ? " (offline)" : ""),
          (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
@@ -939,11 +932,6 @@ int main(int argc, char **argv) {
    }
 
    while(!dying) {
-      // XXX: Check if we're online first
-      // run expiry once per hour
-      if (now % 3600) {
-         run_sql_expire();
-      }
       ev_run(loop, 0);
 
       // if ev loop exits, we need to die..

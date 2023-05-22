@@ -58,7 +58,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
    // if haven't yet allocated the qrz_session
    if (q == NULL) {
       if ((q = malloc(sizeof(qrz_session_t))) == NULL) {
-         fprintf(stderr, "qrz_start_session: out of memory!\n");
+         fprintf(stderr, "qrz_parse_http_data: out of memory!\n");
          exit(ENOMEM);
       }
       memset(q, 0, sizeof(qrz_session_t));
