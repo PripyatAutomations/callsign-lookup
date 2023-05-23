@@ -137,6 +137,27 @@ static void fini(void) {
    exit(0);
 }
 
+char expiry_sql[256];
+void run_sql_expire(void) {
+   int rc = 0;
+
+   if (cache_expire_stmt == NULL) {
+      memset(expiry_sql, 0, 256);
+      snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
+      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
+
+      if (rc != SQLITE_OK) {
+         sqlite3_reset(cache_expire_stmt);
+         log_send(mainlog, LOG_WARNING, "Error preparing statement for cache expiry: %s\n", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
+      }
+   } else {
+      sqlite3_reset(cache_expire_stmt);
+      sqlite3_clear_bindings(cache_expire_stmt);
+   }
+   int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
+   log_send(mainlog, LOG_DEBUG, "cache expiry done: %d changes!", changes);
+}
+
 // Load the configuration (cfg_get_str(...)) into *our* configuration locals
 static void callsign_lookup_setup(void) {
    callsign_initialized = true;
@@ -478,14 +499,25 @@ calldata_t *callsign_cache_find(const char *callsign) {
    // is it expired?
    if (cd->cache_expiry <= now) {
       // are we offline? are we keeping stale results if offline?
-      if (offline && !callsign_keep_stale_offline) {
-         log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry)", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
+      if (offline) {
+         // are we configured to discard even when offline?
+         if (!callsign_keep_stale_offline) {
+            log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry), forcing cache deletion", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
+
+            // we should run a SQL expiry here to delete stale records
+            run_sql_expire();
+
+            // free the data structure before returning, so will look it up
+            free(cd);
+            cd = NULL;
+         } else {	// 
+            log_send(mainlog, LOG_WARNING, "returning stale result for %s (%lu old)", cd->callsign, (cd->cache_expiry - now));
+         }
+      } else {         // we are online, so if it's expired, force a lookup
          free(cd);
-         return NULL;
-      } else {
-         log_send(mainlog, LOG_WARNING, "returning stale result for %s (%lu old)", cd->callsign, (cd->cache_expiry - now));
+         cd = NULL;
       }
-   }
+   } // expired?
    return cd;
 }
 
@@ -592,7 +624,6 @@ static void init_my_coords(void) {
          }
          float lat = atof(coords);	// this stops at the comma after latitude
          float lon = atof(comma);		// this stops at any text after longitude
-         log_send(mainlog, LOG_DEBUG, "lat: %.3f, lon: %.3f\n", lat, lon);
          my_coords.latitude = lat;
          my_coords.longitude = lon;
       }
@@ -638,7 +669,9 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
    if (calldata->cached) {
       char fetched[128], expiry[128];
-      struct tm *tm_fetched, *tm_expiry;
+      struct tm *tm_fetched = NULL, *tm_expiry = NULL;
+
+      // zeroize memories
       memset(fetched, 0, 128);
       memset(expiry, 0, 128);
 
@@ -646,14 +679,15 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
          log_send(mainlog, LOG_CRIT, "localtime() failed");
          exit(255);
       }
-      if ((tm_expiry = localtime(&calldata->cache_expiry)) == NULL) {
-         log_send(mainlog, LOG_CRIT, "localtime() failed");
-         exit(255);
-      }
 
       if (strftime(fetched, 128, "%Y/%m/%d %H:%M:%S", tm_fetched) == 0 && errno != 0) {
          log_send(mainlog, LOG_CRIT, "strftime() failed");
          exit(254);
+      }
+
+      if ((tm_expiry = localtime(&calldata->cache_expiry)) == NULL) {
+         log_send(mainlog, LOG_CRIT, "localtime() failed");
+         exit(255);
       }
 
       if (strftime(expiry, 128, "%Y/%m/%d %H:%M:%S", tm_expiry) == 0 && errno != 0) {
@@ -690,20 +724,20 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
          if (distance > 0 && bearing > 0) {
             float heading_miles = distance * 0.6214;
-            fprintf(stdout, "Heading: %.2f mi / %.2f km at %.2f degrees\n", heading_miles, distance, bearing);
+            fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
          }
       } else {		// nope, convert the grid
          Coordinates call_coord = { 0, 0 };
          if (calldata->grid[0] != '\0') {
             call_coord = maidenhead2latlon(calldata->grid);
-            log_send(mainlog, LOG_DEBUG, "call grid: %s => lat/lon: %.3f, %.3f", calldata->grid, call_coord.latitude, call_coord.longitude);
+            log_send(mainlog, LOG_DEBUG, "call grid: %s => lat/lon: %.4f, %.4f", calldata->grid, call_coord.latitude, call_coord.longitude);
          }
          double distance = calculateDistance(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
          double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
 
          if (distance > 0 && bearing > 0) {
             float heading_miles = distance * 0.6214;
-            fprintf(stdout, "Heading: %.2f mi / %.2f km at %.2f degrees\n", heading_miles, distance, bearing);
+            fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
          }
       }
    }
@@ -873,14 +907,14 @@ static bool parse_request(const char *line) {
      Coordinates coord = { 0, 0 };
      coord = maidenhead2latlon(dupe_grid);
      fprintf(stdout, "Grid: %s\n", dupe_grid);
-     fprintf(stdout, "WGS-84: %.3f, %.3f\n", coord.latitude, coord.longitude);
+     fprintf(stdout, "WGS-84: %.4f, %.4f\n", coord.latitude, coord.longitude);
 
      double distance = calculateDistance(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
      double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
 
      if (distance > 0 && bearing > 0) {
         float heading_miles = distance * 0.6214;
-        fprintf(stdout, "Heading: %.2f mi / %.2f km at %.2f degrees\n", heading_miles, distance, bearing);
+        fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
      }
      fprintf(stdout, "+EOR\n\n");
    } else if (strncasecmp(line, "/EXIT", 5) == 0) {
@@ -942,31 +976,11 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
     }
 }
 
-char expiry_sql[256];
-void run_sql_expire(void) {
-   int rc = 0;
-
-   if (cache_expire_stmt == NULL) {
-      memset(expiry_sql, 0, 256);
-      snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
-      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
-
-      if (rc != SQLITE_OK) {
-         sqlite3_reset(cache_expire_stmt);
-         log_send(mainlog, LOG_WARNING, "Error preparing statement for cache expiry: %s\n", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
-      }
-   } else {
-      sqlite3_reset(cache_expire_stmt);
-      sqlite3_clear_bindings(cache_expire_stmt);
-   }
-   int changes = sqlite3_changes(calldata_cache->hndl.sqlite3);
-   log_send(mainlog, LOG_DEBUG, "cache expiry done: %d changes!", changes);
-}
 
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
    now = time(NULL);			   // update our shared timestamp
 
-   // every 3 hours, run cache expire
+   // every 3 hours, expire old cache data entries
    if ((now % 10800) == 0) {
       run_sql_expire();
    }
@@ -1023,6 +1037,8 @@ int main(int argc, char **argv) {
          progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (offline ? " (offline)" : ""),
          (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
          (callsign_use_cache ? "On" : "Off"));
+
+   // run expires at startup (useful for non-daemon users)
    run_sql_expire();
 
    // if called with callsign(s) as args, look them up, return the parsed output and exit

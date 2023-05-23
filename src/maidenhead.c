@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <math.h>
 #include "config.h"
 #include "maidenhead.h"
@@ -59,9 +60,18 @@ Coordinates maidenhead2latlon(const char *locator) {
       return c;
    }
 
+   // if grid square is odd length, return error
+   if ((len % 2) != 0) {
+      fprintf(stdout, "* ERROR grid squares must be 4-10 digits (A-Z, 0-9) long and even length.\n");
+      return c;
+   }
+
    // if the grid square is less than 10 digits, pad it to the middle of squares (LL55)
    if (len < 10) {
-      lp = complete_mh(locator);
+      if ((lp = complete_mh(locator)) == NULL) {
+         // Invalid (uneven length?) grid square passed
+         fprintf(stdout, "* ERROR grid squares must be 4-10 digits (A-Z, 0-9) long and even length.\n");
+      }
    }
 
    // calculate latitude
