@@ -184,6 +184,13 @@ static void callsign_lookup_setup(void) {
       } else {
          callsign_cache_db = s;
          callsign_cache_expiry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/cache-expiry"));
+         log_send(mainlog, LOG_DEBUG, "setting default callsign cache expiry to %lu seconds (from config)", callsign_cache_expiry);
+
+         // minimum 1 hour cache lifetime
+         if (callsign_cache_expiry < 3600) {
+            log_send(mainlog, LOG_WARNING, "callsign-lookup/cache-expiry %lu is too low, defaulting to 1 hour. If you wish to disable caching, set callsign-lookup/use-cache to false instead.", callsign_cache_expiry);
+            callsign_cache_expiry = 3600;
+         }
          callsign_keep_stale_offline = str2bool(cfg_get_str(cfg, "callsign-lookup/cache-keep-stale-if-offline"), true);
 
          if ((calldata_cache = sql_open(callsign_cache_db)) == NULL) {
@@ -242,7 +249,7 @@ bool callsign_cache_save(calldata_t *cp) {
          "codes, email, u_views, effective, expires, cache_expires,"
          "cache_fetched) VALUES"
          "( UPPER(@CALL), @DXCC, @ALIAS, @FNAME, @LNAME, @ADDRA, @ADDRB, "
-         "@STATE, @ZIP, @GRID, @COUNTRY, @LAT, @LAT, @COUNTY, @CLASS, @CODE, @EMAIL, @VIEWS, @EFF, @EXP, @CEXP, @CFETCH);";
+         "@STATE, @ZIP, @GRID, @COUNTRY, @LAT, @LON, @COUNTY, @CLASS, @CODE, @EMAIL, @VIEWS, @EFF, @EXP, @CEXP, @CFETCH);";
 
       rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, sql , -1, &cache_insert_stmt, 0);
 
@@ -254,6 +261,9 @@ bool callsign_cache_save(calldata_t *cp) {
       sqlite3_reset(cache_insert_stmt);
       sqlite3_clear_bindings(cache_insert_stmt);
    }
+
+   cp->cache_expiry = now + callsign_cache_expiry;
+   cp->cache_fetched = now;
 
    // bind variables
    int idx_callsign = sqlite3_bind_parameter_index(cache_insert_stmt, "@CALL");
@@ -299,17 +309,17 @@ bool callsign_cache_save(calldata_t *cp) {
    sqlite3_bind_int(cache_insert_stmt, idx_views, cp->qrz_views);
    sqlite3_bind_int64(cache_insert_stmt, idx_eff, cp->license_effective);
    sqlite3_bind_int64(cache_insert_stmt, idx_exp, cp->license_expiry);
-   sqlite3_bind_int64(cache_insert_stmt, idx_cache_expiry, now + callsign_cache_expiry);
-   sqlite3_bind_int64(cache_insert_stmt, idx_cache_fetched, now);
+   sqlite3_bind_int64(cache_insert_stmt, idx_cache_expiry, cp->cache_expiry);
+   sqlite3_bind_int64(cache_insert_stmt, idx_cache_fetched, cp->cache_fetched);
 
    // execute the query
    rc = sqlite3_step(cache_insert_stmt);
-   log_send(mainlog, LOG_DEBUG, "calldata_cache_save: rc: %d", rc);
    
    if (rc == SQLITE_OK) {
       // nothing to do here...
       return true;
 //   } else {
+      log_send(mainlog, LOG_DEBUG, "calldata_cache_save: rc: %d", rc);
 //      log_send(mainlog, LOG_WARNING, "inserting %s into calldata cache failed: %s", cp->callsign, sqlite3_errmsg(calldata_cache->hndl.sqlite3));
    }
 
@@ -496,18 +506,20 @@ calldata_t *callsign_lookup(const char *callsign) {
 
    // XXX: If offline, check last online_last_retry and if it's been long
    // XXX: enough, try to reconnect before the QRZ check
-   if (offline && (online_last_retry + online_mode_retry <= now)) {
-      if (callsign_use_qrz && !qrz_active) {
-         res = qrz_start_session();
-         qrz_active = true;
-         online_last_retry = now;
+   if (offline) {
+      if (online_last_retry == 0 || (online_last_retry + online_mode_retry <= now)) {
+         if (callsign_use_qrz && !qrz_active) {
+            res = qrz_start_session();
+            qrz_active = true;
+            online_last_retry = now;
 
-         // if logging into qrz failed, set offline mode
-         if (res == false) {
-            log_send(mainlog, LOG_CRIT, "Failed logging into QRZ, setting offline mode!");
-            offline = true;
-         } else {	// if we logged in, clear offline mode
-            offline = false;
+            // if logging into qrz failed, set offline mode
+            if (res == false) {
+               log_send(mainlog, LOG_CRIT, "Failed logging into QRZ, setting offline mode!");
+               offline = true;
+            } else {	// if we logged in, clear offline mode
+               offline = false;
+            }
          }
       }
    }
@@ -609,11 +621,12 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
          exit(255);
       }
 
-      if (strftime(fetched, 128, "%Y/%m/%d", tm_fetched) == 0 && errno != 0) {
+      if (strftime(fetched, 128, "%Y/%m/%d %H:%M:%S", tm_fetched) == 0 && errno != 0) {
          log_send(mainlog, LOG_CRIT, "strftime() failed");
          exit(254);
       }
-      if (strftime(expiry, 128, "%Y/%m/%d", tm_expiry) == 0 && errno != 0) {
+
+      if (strftime(expiry, 128, "%Y/%m/%d %H:%M:%S", tm_expiry) == 0 && errno != 0) {
          log_send(mainlog, LOG_CRIT, "strftime() failed");
          exit(254);
       }
@@ -656,23 +669,35 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
                float lat = atof(coords);	// this stops at the comma after latitude
                float lon = atof(comma);		// this stops at any text after longitude
                log_send(mainlog, LOG_DEBUG, "lat: %.3f, lon: %.3f\n", lat, lon);
+               my_coords.latitude = lat;
+               my_coords.longitude = lon;
             }
          }
-         log_send(mainlog, LOG_DEBUG, "mygrid: %s = %f, %f", my_grid, my_coords.latitude, my_coords.longitude);
+         log_send(mainlog, LOG_DEBUG, "configured mygrid: %s, lat: %f, lon: %f", my_grid, my_coords.latitude, my_coords.longitude);
       }
+
+      // did QRZ provide lat / lon?
       if (calldata->latitude != 0 && calldata->longitude != 0) {
          double distance = calculateDistance(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
          double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
 
          if (distance > 0 && bearing > 0) {
-            fprintf(stdout, "Heading: %.2f km at %.2f degrees\n", distance, bearing);
+            float heading_miles = distance * 0.6214;
+            fprintf(stdout, "Heading: %.2f mi / %.2f km at %.2f degrees\n", heading_miles, distance, bearing);
          }
-      } else {
-/* XXX: Figure it out from gridsquare
-         Coordinates *call_coord =
+      } else {		// nope, convert the grid
+         Coordinates call_coord = { 0, 0 };
          if (calldata->grid[0] != '\0') {
-            Coordinates *
-*/
+            call_coord = maidenhead2latlon(calldata->grid);
+            log_send(mainlog, LOG_DEBUG, "call grid: %s => lat/lon: %.3f, %.3f", calldata->grid, call_coord.latitude, call_coord.longitude);
+         }
+         double distance = calculateDistance(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
+         double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
+
+         if (distance > 0 && bearing > 0) {
+            float heading_miles = distance * 0.6214;
+            fprintf(stdout, "Heading: %.2f mi / %.2f km at %.2f degrees\n", heading_miles, distance, bearing);
+         }
       }
    }
 
@@ -781,13 +806,16 @@ static bool parse_request(const char *line) {
       fprintf(stderr, "200 OK\n");
       fprintf(stderr, "*** HELP ***\n");
       // XXX: Implement NOCACHE
-      fprintf(stderr, "CALLSIGN <CALLSIGN> [NOCACHE]\tLookup a callsign, (NYI) optionally without using the cache\n");
+      fprintf(stderr, "CALLSIGN <CALLSIGN> [NOCACHE]\tLookup a callsign\n");
+      fprintf(stderr, "GOODBYE\t\t\t\tDisconnect from the service, leaving it running\n");
+      fprintf(stderr, "HELP\t\t\t\tThis message\n");
+
       // XXX: Implement optional password
-      fprintf(stderr, "EXIT\t\t\tShutdown the service\n");
-      fprintf(stderr, "GOODBYE\t\tDisconnect from the service, leaving it running\n");
-      fprintf(stderr, "HELP\t\t\tThis message\n");
+      fprintf(stderr, "EXIT\t\t\t\tShutdown the service\n");
+
       fprintf(stderr, "*** Planned ***\n");
       fprintf(stderr, "GNIS <GRID|COORDS>\t\tLook up the place name for a grid or WGS-84 coordinate\n");
+      fprintf(stderr, "GRID [GRID]\t\t\tGet information about a grid square (lat/lon and bearing)\n");
    } else if (strncasecmp(line, "CALLSIGN", 8) == 0) {
       const char *callsign = line + 9;
 
@@ -802,6 +830,25 @@ static bool parse_request(const char *line) {
          free(calldata);
          calldata = NULL;
       }
+   } else if (strncasecmp(line, "GNIS", 4) == 0) {
+     const char *grid = line + 5;
+
+     if (*grid == '\0') {
+        fprintf(stdout, "You must specify a wgs-84 coordinate or 4/6 digit grid square.\n");
+        return false;
+     }
+   } else if (strncasecmp(line, "GRID", 4) == 0) {
+     if (*(line + 5) == '\0') {
+        fprintf(stdout, "You must specify a 4 or 6 digit grid square.\n");
+        return false;
+     }
+     const char *grid = line + 6;
+
+     Coordinates coord = { 0, 0 };
+     coord = maidenhead2latlon(grid);
+     fprintf(stdout, "Grid: %s\n", grid);
+     fprintf(stdout, "WGS-84: %f, %f\n", coord.latitude, coord.longitude);
+     fprintf(stdout, "+EOR\n");
    } else if (strncasecmp(line, "EXIT", 4) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
       fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");

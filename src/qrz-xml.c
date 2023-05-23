@@ -315,7 +315,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             memcpy(lon_buf, lon, lon_len);
             calldata->longitude = atof(lon_buf);
          } else {
-            fprintf(stderr, "lat: NULL\n");
+            fprintf(stderr, "lon: NULL\n");
          }
 
          char *county = strstr(buf, "<county>");
@@ -546,10 +546,19 @@ calldata_t *qrz_lookup_callsign(const char *callsign) {
       exit(ENOMEM);
    }
 
-   if (callsign == NULL || qrz_api_url == NULL || qrz_session == NULL) {
+   if (callsign == NULL) {
+      log_send(mainlog, LOG_DEBUG, "qrz_lookup_callsign called with NULL callsign!");
+      return false;
+   }
+   
+   if (qrz_api_url == NULL || qrz_session == NULL) {
       log_send(mainlog, LOG_WARNING, "qrz_lookup_callsign failed, XML API session is not yet active!");
       log_send(mainlog, LOG_WARNING, "callsign: %p <%s> api_url %p <%s> session <%p>", callsign, callsign, qrz_api_url, qrz_api_url, qrz_session);
-      return false;
+      if (qrz_start_session() == false) {
+         log_send(mainlog, LOG_CRIT, "Attempting to start QRZ session failed!");
+//         offline = true;
+         return false;
+      }
    }
 
    memset(calldata, 0, sizeof(calldata_t));

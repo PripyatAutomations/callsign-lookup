@@ -10,7 +10,7 @@ POSTGRESQL=n
 
 # required libraries: -l${x} will be expanded later...
 common_libs += yajl ev
-callsign_lookup_libs += yajl m sqlite3 curl
+callsign_lookup_libs += m sqlite3 curl
 
 # If building DEBUG release
 ifeq (${DEBUG},y)
