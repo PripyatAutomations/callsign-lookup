@@ -728,16 +728,23 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
          }
       } else {		// nope, convert the grid
          Coordinates call_coord = { 0, 0 };
+
          if (calldata->grid[0] != '\0') {
             call_coord = maidenhead2latlon(calldata->grid);
             log_send(mainlog, LOG_DEBUG, "call grid: %s => lat/lon: %.4f, %.4f", calldata->grid, call_coord.latitude, call_coord.longitude);
          }
-         double distance = calculateDistance(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
-         double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
 
-         if (distance > 0 && bearing > 0) {
-            float heading_miles = distance * 0.6214;
-            fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
+         if (call_coord.latitude == 0 && call_coord.longitude == 0) {
+            log_send(mainlog, LOG_DEBUG, "invalid coordinates 0,0 for call %s", calldata->callsign);
+            fprintf(stderr, "* ERROR invalid coordinates (0,0) returned by maiden2latlon!");
+         } else {
+            double distance = calculateDistance(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
+            double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
+
+            if (distance > 0 && bearing > 0) {
+               float heading_miles = distance * 0.6214;
+               fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
+            }
          }
       }
    }
