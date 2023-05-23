@@ -32,3 +32,23 @@ callsign-lookup CALLSIGN
 
 callsign-lookup
 	Runs as a foreground process handling lookups
+
+
+	All commands respond like such:
+
+/help
+200 OK
+*** HELP ***
+/CALL <CALLSIGN> [NOCACHE]      Lookup a callsign
+/GOODBYE                        Disconnect from the service, leaving it running
+/GRID [GRID]                    Get information about a grid square (lat/lon and bearing)
+/HELP                           This message
+/EXIT                           Shutdown the service
+*** Planned ***
+/GNIS <GRID|COORDS>             Look up the place name for a grid or WGS-84 coordinate
++OK
+
+
+	Ignore lines beginning with [0-9][0-9][0-9] or +.
+
+	Responses will be either numeric or +OK / +ERROR as appropriate.
