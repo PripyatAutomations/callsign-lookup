@@ -607,6 +607,8 @@ static const char *origin_name[5] = { "NONE", "ULS", "QRZ", "CACHE", NULL };
 
 static void init_my_coords(void) {
    const char *coords = cfg_get_str(cfg, "site/coordinates");
+   my_grid = cfg_get_str(cfg, "site/gridsquare");
+
    if (coords != NULL) {
       const char *comma = strchr(coords, ',');
 
@@ -703,6 +705,34 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
       fprintf(stdout, "Name: %s %s\n", calldata->first_name, calldata->last_name);
    }
 
+   char *opclass = NULL;
+   if (calldata->opclass[0] != '\0') {
+      if (strcasecmp(calldata->country, "United States") == 0) {
+         switch(calldata->opclass[0]) {
+            case 'N':
+               opclass = "Novice";
+               break;
+            case 'A':
+               opclass = "Advanced";
+               break;
+            case 'T':
+               opclass = "Technician";
+               break;
+            case 'G':
+               opclass = "General";
+               break;
+            case 'E':
+               opclass = "Extra";
+               break;
+            default:
+               break;
+         }
+      }
+      if (opclass != NULL) {
+         fprintf(stdout, "Class: %s\n", opclass);
+      }
+   }
+
    if (calldata->grid[0] != 0) {
       fprintf(stdout, "Grid: %s\n", calldata->grid);
    }
@@ -735,8 +765,7 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
          }
 
          if (call_coord.latitude == 0 && call_coord.longitude == 0) {
-            log_send(mainlog, LOG_DEBUG, "invalid coordinates 0,0 for call %s", calldata->callsign);
-            fprintf(stderr, "* ERROR invalid coordinates (0,0) returned by maiden2latlon!");
+            return false;
          } else {
             double distance = calculateDistance(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
             double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
@@ -850,17 +879,19 @@ typedef struct sockio {
 
 static bool parse_request(const char *line) {
    //fprintf(stderr, "stdin_cb: Parsing line: %s\n", line);
-   if (strncasecmp(line, "/HELP", 5) == 0) {
+   if (strlen(line) == 0) {
+      // return true;
+
+   } else if (strncasecmp(line, "/HELP", 5) == 0) {
       fprintf(stderr, "200 OK\n");
       fprintf(stderr, "*** HELP ***\n");
       // XXX: Implement NOCACHE
       fprintf(stderr, "/CALL <CALLSIGN> [NOCACHE]\tLookup a callsign\n");
-      fprintf(stderr, "/GOODBYE\t\t\tDisconnect from the service, leaving it running\n");
-      fprintf(stderr, "/GRID [GRID]\t\t\tGet information about a grid square (lat/lon and bearing)\n");
-      fprintf(stderr, "/HELP\t\t\t\tThis message\n");
-
       // XXX: Implement optional password
       fprintf(stderr, "/EXIT\t\t\t\tShutdown the service\n");
+      fprintf(stderr, "/GOODBYE\t\t\tDisconnect from the service, leaving it running\n");
+      fprintf(stderr, "/GRID [GRID|COORD]\t\tGet information about a grid square or lat/lon\n");
+      fprintf(stderr, "/HELP\t\t\t\tThis message\n");
 
       fprintf(stderr, "*** Planned ***\n");
       fprintf(stderr, "/GNIS <GRID|COORDS>\t\tLook up the place name for a grid or WGS-84 coordinate\n");
@@ -880,49 +911,76 @@ static bool parse_request(const char *line) {
          calldata = NULL;
       }
    } else if (strncasecmp(line, "/GNIS", 5) == 0) {
-     const char *grid = line + 6;
+     const char *point = line + 6;
 
-     if (*grid == '\0') {
-        fprintf(stdout, "You must specify a wgs-84 coordinate or 4/6 digit grid square.\n");
+     if (*point == '\0') {
+        fprintf(stdout, "You must specify a WGS-84 coordinate or a 4-10 digit grid square.\n");
         return false;
      }
    } else if (strncasecmp(line, "/GRID", 5) == 0) {
+     Coordinates coord = { 0, 0 };
+     const char *point = line + 6;
+     const char *comma = NULL;
+     char dupe_point[11];
+     char *their_grid = NULL;
+
      if (*(line + 6) == '\0') {
-        fprintf(stdout, "You must specify a 4 or 6 digit grid square.\n");
+        fprintf(stdout, "You must specify a WGS-84 coordinate or a 4-10 digit grid square.\n");
         return false;
      }
-     const char *grid = line + 6;
-     size_t grid_len = strlen(grid);
-     char dupe_grid[11];
-     memset(dupe_grid, 0, 11);
-     memcpy(dupe_grid, grid, grid_len);
-    
-     // upper case it, for readability
-     for (int i = 0; i < grid_len; i++) {
-        // upper case all letters
-        if (!isdigit(dupe_grid[i])) {
-           dupe_grid[i] = toupper(grid[i]);
+
+     if (point != NULL) {
+        comma = strchr(point, ',');
+
+        if (comma == NULL) {
+           size_t point_len = strlen(point);
+           memset(dupe_point, 0, 11);
+           memcpy(dupe_point, point, point_len);
+          
+           // upper case it, for readability
+           for (int i = 0; i < point_len; i++) {
+              // upper case all letters
+              if (!isdigit(dupe_point[i])) {
+                 dupe_point[i] = toupper(point[i]);
+              } else {
+                 dupe_point[i] = point[i];
+              }
+           }
+           coord = maidenhead2latlon(dupe_point);
         } else {
-           dupe_grid[i] = grid[i];
+           comma++;	// skip the comma
+
+           if (comma == NULL) {		// this is an error
+              log_send(mainlog, LOG_CRIT, "cfg:site/coordinates is invalid (no value after comma)!");
+           } else  if (*comma == ' ') {	// trim leading white space
+              while (*comma == ' ') {
+                 comma++;
+              }
+           }
+           float lat = atof(point);	// this stops at the comma after latitude
+           float lon = atof(comma);	// this stops at any text after longitude
+           coord.latitude = lat;
+           coord.longitude = lon;
+           their_grid = latlon2maidenhead(&coord);
         }
      }
 
-     if (my_coords.latitude == 0 && my_coords.longitude == 0) {
-        init_my_coords();
+     if (coord.latitude == 0 && coord.longitude == 0) {
+        return false;
      }
 
-     Coordinates coord = { 0, 0 };
-     coord = maidenhead2latlon(dupe_grid);
-     fprintf(stdout, "Grid: %s\n", dupe_grid);
+     if (comma == NULL) {
+        fprintf(stdout, "Grid: %s\n", dupe_point);
+     } else {
+        fprintf(stdout, "Grid: %s\n", their_grid);
+     }
+        
      fprintf(stdout, "WGS-84: %.4f, %.4f\n", coord.latitude, coord.longitude);
-
      double distance = calculateDistance(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
      double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
 
-     if (distance > 0 && bearing > 0) {
-        float heading_miles = distance * 0.6214;
-        fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
-     }
+     float heading_miles = distance * 0.6214;
+     fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
      fprintf(stdout, "+EOR\n\n");
    } else if (strncasecmp(line, "/EXIT", 5) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
@@ -1014,7 +1072,8 @@ int main(int argc, char **argv) {
       online_mode_retry = 30;
    }
 
-   my_grid = cfg_get_str(cfg, "site/gridsquare");
+   // initialize site location data
+   init_my_coords();
 
    if (logpath != NULL) {
       mainlog = log_open(logpath);
