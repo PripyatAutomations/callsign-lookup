@@ -853,9 +853,10 @@ static bool parse_request(const char *line) {
      const char *grid = line + 6;
      size_t grid_len = strlen(grid);
      char dupe_grid[11];
-     char dupe_grid_init[11] = "LL55LL55LL";
-     memcpy(dupe_grid, dupe_grid_init, 11);
-
+     memset(dupe_grid, 0, 11);
+     memcpy(dupe_grid, grid, grid_len);
+    
+     // upper case it, for readability
      for (int i = 0; i < grid_len; i++) {
         // upper case all letters
         if (!isdigit(dupe_grid[i])) {
