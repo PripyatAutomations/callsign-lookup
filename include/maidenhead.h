@@ -13,6 +13,7 @@ extern "C" {
       float	latitude;
       float	longitude;
       uint8_t	precision;			// how many digits of precision were given for the longest of lat/lon
+      int	error;				// if non-zero, errno
    } Coordinates;
 
 extern double deg2rad(double deg);

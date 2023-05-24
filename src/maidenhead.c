@@ -51,11 +51,11 @@ static char letterize(int x) {
 
 Coordinates maidenhead2latlon(const char *locator) {
    const char *lp = locator;				// pointer to locator we'll use
-   Coordinates c = { 0, 0 };
+   Coordinates c = { .latitude = 0, .longitude = 0, .precision = 0, .error = true };
    double field, square, subsquare, extsquare, precsquare;
    int len = strlen(locator);
 
-   // If invalid grid square, return 0,0 to indicate
+   // If invalid grid square, return 0,0 to indicate it
    if (len > 10 || len < 4) {
       return c;
    }
@@ -98,19 +98,6 @@ Coordinates maidenhead2latlon(const char *locator) {
 
 // you should free this!
 const char *latlon2maidenhead(Coordinates *c) {
-// Old code, for reference, for now...
-/*
-    int lat_square = floor((c->latitude + 90.0) / 10.0);
-    int long_square = floor((c->longitude + 180.0) / 20.0);
-    char square[MAX_GRID_LEN] = {(char)(long_square + 'A'), (char)(lat_square + 'A'), '\0'};
-    double lat_remainder = fmod(c->latitude + 90.0, 10.0);
-    double long_remainder = fmod(c->longitude + 180.0, 20.0);
-    int lat_digit_1 = floor(lat_remainder);
-    int long_digit_1 = floor(long_remainder / 2.0);
-    int lat_digit_2 = floor((lat_remainder - lat_digit_1) * 60.0 / 5.0);
-    int long_digit_2 = floor(fmod(long_remainder, 2.0) * 60.0 / 2.5);
-    sprintf(square + strlen(square), "%d%d%c%c", long_digit_1, lat_digit_1, long_digit_2 + '0', lat_digit_2 + '0');
-*/
     // These contain the precision in degrees of each pair (1 to 5 in a 2-10 digit grid square)
     double LON_F[]={ 20, 2.0, 0.083333, 0.008333, 0.0003472083333333333 };
     double LAT_F[]={ 10, 1.0, 0.0416665, 0.004166, 0.0001735833333333333 };

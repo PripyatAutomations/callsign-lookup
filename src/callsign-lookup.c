@@ -1076,7 +1076,6 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
     }
 }
 
-
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
    now = time(NULL);			   // update our shared timestamp
 
@@ -1124,24 +1123,26 @@ int main(int argc, char **argv) {
    // initialize site location data
    init_my_coords();
 
+   // setup stdin
    if ((input = malloc(sizeof(InputBuffer))) == NULL) {
       log_send(mainlog, LOG_CRIT, "malloc(InputBuffer): out of memory!");
       exit(ENOMEM);
    }
    memset(input, 0, sizeof(InputBuffer));
-
    ev_io_init(&stdin_watcher, stdin_cb, STDIN_FILENO, EV_READ);
    stdin_watcher.data = input;
    ev_io_start(loop, &stdin_watcher);
 
-   // start our once a second periodic timer (used for housekeeping and the clock display)
+   // start our once a second periodic timer (used for housekeeping)
    ev_timer_init(&periodic_watcher, periodic_cb, 0, 1);
    ev_timer_start(loop, &periodic_watcher);
 
+   // initialize things
    callsign_lookup_setup();
 
    printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n",
-         progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (offline ? " (offline)" : ""),
+         progname, VERSION,
+         (callsign_use_qrz ? "On" : "Off"), (offline ? " (offline)" : ""),
          (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
          (callsign_use_cache ? "On" : "Off"));
 
@@ -1176,12 +1177,8 @@ int main(int argc, char **argv) {
       log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
    }
 
-   while(!dying) {
-      ev_run(loop, 0);
-
-      // if ev loop exits, we need to die..
-      dying = true;
-   }
+   // run the EV main loop...
+   ev_run(loop, 0);
 
    // Close the database(s)
    if (calldata_cache != NULL) {
