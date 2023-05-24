@@ -959,7 +959,6 @@ static bool parse_request(const char *line) {
               lat_digits = (int)((comma - 1) - (lat_dot + 1));	// get lat length
               comma++;						// skip the comma
               lon_digits = (int)(lon_end - (lon_dot + 1));		// figure out lon length
-
               log_send(mainlog, LOG_DEBUG, "precision: lat_digits: %lu, lon_digits: %lu", lat_digits, lon_digits);
            }
 
@@ -973,7 +972,6 @@ static bool parse_request(const char *line) {
            } else {
               coord.precision = 2;
            }
-           fprintf(stderr, "precision: %d\n", coord.precision);
 
            if (comma == NULL) {		// this is an error
               log_send(mainlog, LOG_CRIT, "cfg:site/coordinates is invalid (no value after comma)!");
