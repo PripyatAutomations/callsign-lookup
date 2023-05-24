@@ -1,4 +1,4 @@
-VERSION = 20230519
+VERSION = 20230524
 #CC := clang
 all: world
 bins := callsign-lookup
