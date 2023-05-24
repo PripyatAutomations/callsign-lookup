@@ -922,7 +922,7 @@ static bool parse_request(const char *line) {
      const char *point = line + 6;
      const char *comma = NULL;
      char dupe_point[11];
-     char *their_grid = NULL;
+     const char *their_grid = NULL;
 
      if (*(line + 6) == '\0') {
         fprintf(stdout, "You must specify a WGS-84 coordinate or a 4-10 digit grid square.\n");
@@ -1007,9 +1007,9 @@ static bool parse_request(const char *line) {
      fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
      fprintf(stdout, "+EOR\n\n");
 
-     if (their_grid != NULL) {
-        free(their_grid);
-     }
+//     if (their_grid != NULL) {
+//        free(their_grid);
+//     }
    } else if (strncasecmp(line, "/EXIT", 5) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
       fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");

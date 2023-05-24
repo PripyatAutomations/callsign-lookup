@@ -94,9 +94,7 @@ Coordinates maidenhead2latlon(const char *locator) {
 }
 
 // you should free this!
-char *latlon2maidenhead(Coordinates *c) {
-    char *out = malloc(MAX_GRID_LEN);
-    memset(out, 0, MAX_GRID_LEN);
+const char *latlon2maidenhead(Coordinates *c) {
 // Old code, for reference, for now...
 /*
     int lat_square = floor((c->latitude + 90.0) / 10.0);
@@ -133,6 +131,11 @@ char *latlon2maidenhead(Coordinates *c) {
     size /= 2;
     size *= 2;
 
+    // limit to 10
+    if (size > 10) {
+       size = 10;
+    }
+
     // buffer
     static char locator[11];
 
@@ -148,9 +151,8 @@ char *latlon2maidenhead(Coordinates *c) {
         lat = fmod(lat, LAT_F[i]);
     }
     locator[i * 2] = 0;
-    snprintf(out, 11, "%s", locator);
 
-    return out;
+    return locator;
 }
 
 double deg2rad(double degrees) {

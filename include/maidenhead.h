@@ -18,7 +18,7 @@ extern "C" {
 extern double deg2rad(double deg);
 extern double rad2deg(double rad);
 extern Coordinates maidenhead2latlon(const char *locator);
-extern char *latlon2maidenhead(Coordinates *c);
+extern const char *latlon2maidenhead(Coordinates *c);
 extern double calculateBearing(double lat1, double lon1, double lat2, double lon2);
 extern double calculateDistance(double lat1, double lon1, double lat2, double lon2);
 
