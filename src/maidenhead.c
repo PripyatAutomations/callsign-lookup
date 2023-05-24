@@ -110,27 +110,31 @@ char *latlon2maidenhead(Coordinates *c) {
     int long_digit_2 = floor(fmod(long_remainder, 2.0) * 60.0 / 2.5);
     sprintf(square + strlen(square), "%d%d%c%c", long_digit_1, lat_digit_1, long_digit_2 + '0', lat_digit_2 + '0');
 */
-    static char locator[11];
     // These contain the precision in degrees of each pair (1 to 5 in a 2-10 digit grid square)
     double LON_F[]={ 20, 2.0, 0.083333, 0.008333, 0.0003472083333333333 };
     double LAT_F[]={ 10, 1.0, 0.0416665, 0.004166, 0.0001735833333333333 };
     int i;
     double lat = c->latitude;
     double lon = c->longitude;
-    int size = 6;
+    int size = 4;
     lon += 180;	
     lat += 90;
 
-    // figure out how much precision we were given
-//    if (c->precision >= 
-//       size = c->precision * 2;
-//    }
+    // minimum of 4, maximum of 10 digits
+    if (c->precision > 2 && c->precision <= 5) {
+       size = c->precision * 2;
+    } else if (c->precision >= 5) {
+       size = 10;
+    } else {
+       size = 4;
+    }
 
-    if (size <= 0 || size > 10)
-       size = 6;
-
+    // make it even due to rounding
     size /= 2;
     size *= 2;
+
+    // buffer
+    static char locator[11];
 
     for (i = 0; i < size / 2; i++){
         if (i % 2 == 1) {

@@ -948,10 +948,36 @@ static bool parse_request(const char *line) {
            }
            coord = maidenhead2latlon(dupe_point);
         } else {
-           comma++;	// skip the comma
+           int lat_digits = 0, lon_digits = 0;
+           const char *lat_dot = strchr(point, '.');
+           const char *lon_dot = strchr(comma, '.');
+
+           if (lat_dot == NULL || lon_dot == NULL) {
+              log_send(mainlog, LOG_DEBUG, "lat_dot (%p) or lon_dot (%p) NULL, precision = 1", lat_dot, lon_dot);
+           } else {
+              const char *lon_end = lon_dot + strlen(lon_dot);
+              lat_digits = (int)((comma - 1) - (lat_dot + 1));	// get lat length
+              comma++;						// skip the comma
+              lon_digits = (int)(lon_end - (lon_dot + 1));		// figure out lon length
+
+              log_send(mainlog, LOG_DEBUG, "precision: lat_digits: %lu, lon_digits: %lu", lat_digits, lon_digits);
+           }
+
+           // set the precision of our coordinates
+           if (lat_digits >= 3 && lon_digits >= 3) {
+              coord.precision = 5;
+           } else if (lat_digits >= 2 && lon_digits >= 2) {
+              coord.precision = 4;
+           } else if (lat_digits >= 1 && lon_digits >= 1) {
+              coord.precision = 3;
+           } else {
+              coord.precision = 2;
+           }
+           fprintf(stderr, "precision: %d\n", coord.precision);
 
            if (comma == NULL) {		// this is an error
               log_send(mainlog, LOG_CRIT, "cfg:site/coordinates is invalid (no value after comma)!");
+              return false;
            } else  if (*comma == ' ') {	// trim leading white space
               while (*comma == ' ') {
                  comma++;
@@ -982,6 +1008,10 @@ static bool parse_request(const char *line) {
      float heading_miles = distance * 0.6214;
      fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
      fprintf(stdout, "+EOR\n\n");
+
+     if (their_grid != NULL) {
+        free(their_grid);
+     }
    } else if (strncasecmp(line, "/EXIT", 5) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
       fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");
@@ -1065,6 +1095,12 @@ int main(int argc, char **argv) {
       exit_fix_config();
 
    const char *logpath = dict_get(runtime_cfg, "logpath", "file://callsign-lookup.log");
+
+// setup logging for address sanitizers
+#if	defined(DEBUG)
+   setenv("ASAN_OPTIONS", "log_path=asan.log", 1);
+   setenv("UBSAN_OPTIONS", "log_path=ubsan.log", 1);
+#endif
 
    // how often should we retry going online?
    online_mode_retry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/retry-delay"));
