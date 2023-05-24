@@ -4,6 +4,15 @@
       "callsign-lookup-logpath": "file://callsign-lookup.log",
       "callsign-lookup-loglevel": "debug"
    },
+   "site": {
+      "mycall": "N0CALL",
+      "gridsquare": "AA00cc",
+      "x-coordinates": "12.34, -56.78",
+      "elevation": "340M",
+      "city": "Earth City",
+      "state": "MO",
+      "country": "USA"
+    },
     "callsign-lookup": {
       "respawn-after-requests": 1000,
       "use-uls": "false",
