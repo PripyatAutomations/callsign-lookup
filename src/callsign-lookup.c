@@ -30,6 +30,8 @@
 #include "sql.h"
 #include "maidenhead.h"
 
+#define	PROTO_VER	1
+
 // Local types.. Gross!
 #define BUFFER_SIZE 1024
 typedef struct {
@@ -1182,6 +1184,10 @@ int main(int argc, char **argv) {
    // initialize things
    callsign_lookup_setup();
 
+
+   printf("+NOTICE This server is experimental. Please feel free to suggest improvements or send patches\n");
+   printf("+NOTICE Use /HELP to see available commands.\n");
+   printf("+PROTO %d mytime=%lu\n", PROTO_VER, now);
    printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n",
          progname, VERSION,
          (callsign_use_qrz ? "On" : "Off"), (offline ? " (offline)" : ""),
