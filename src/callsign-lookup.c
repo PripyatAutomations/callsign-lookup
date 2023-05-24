@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <ev.h>
 #include "debuglog.h"
+#include "daemon.h"
 #include "qrz-xml.h"
 #include "ft8goblin_types.h"
 #include "gnis-lookup.h"
@@ -119,7 +120,7 @@ bool str2bool(const char *str, bool def) {
    return def;
 }
 
-static void fini(void) {
+static void sql_fini(void) {
    if (cache_insert_stmt != NULL) {
       sqlite3_finalize(cache_insert_stmt);
    }
@@ -130,6 +131,16 @@ static void fini(void) {
 
    if (cache_expire_stmt != NULL) {
       sqlite3_finalize(cache_expire_stmt);
+   }
+
+   if (calldata_cache != NULL) {
+      sql_close(calldata_cache);
+      calldata_cache = NULL;
+   }
+
+   if (calldata_uls != NULL) {
+      sql_close(calldata_uls);
+      calldata_uls = NULL;
    }
 
    exit(0);
@@ -590,7 +601,7 @@ calldata_t *callsign_lookup(const char *callsign) {
          log_send(mainlog, LOG_CRIT, "answered %d of %d allowed requests, exiting", callsign_ttl_requests, callsign_max_requests);
          // XXX: Dump CPU and memory statistics to the log, so we can look for leaks and profile
          // XXX: req/sec, etc too
-         fini();
+         fini(0);
       }
    }
    return qr;
@@ -1020,7 +1031,7 @@ static bool parse_request(const char *line) {
    } else if (strncasecmp(line, "/EXIT", 5) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
       fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
-      fini();
+      fini(0);
    } else if (strncasecmp(line, "/GOODBYE", 8) == 0) {
       log_send(mainlog, LOG_NOTICE, "Got GOODBYE from client. Disconnecting it.");
       fprintf(stdout, "+GOODBYE Hope you had a nice session!\n");
@@ -1054,7 +1065,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
        free(input);
        log_send(mainlog, LOG_CRIT, "got ^D (EOF), exiting!");
        fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
-       fini();
+       fini(0);
        return;
     }
 
@@ -1114,6 +1125,7 @@ int main(int argc, char **argv) {
    }
    log_send(mainlog, LOG_NOTICE, "%s/%s starting up!", progname, VERSION);
 
+   init_signals();
    // how often should we retry going online?
    online_mode_retry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/retry-delay"));
    if (online_mode_retry < 30) { // enforce a minimum of 30 seconds between retries
@@ -1181,15 +1193,7 @@ int main(int argc, char **argv) {
    ev_run(loop, 0);
 
    // Close the database(s)
-   if (calldata_cache != NULL) {
-      sql_close(calldata_cache);
-      calldata_cache = NULL;
-   }
-
-   if (calldata_uls != NULL) {
-      sql_close(calldata_uls);
-      calldata_uls = NULL;
-   }
+   sql_fini();
 
    // XXX: get rid of this in favor of per-socket buffers, if we go that route...
    if (input != NULL) {
