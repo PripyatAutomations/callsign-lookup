@@ -10,15 +10,15 @@ POSTGRESQL=n
 
 # required libraries: -l${x} will be expanded later...
 common_libs += yajl ev
-callsign_lookup_libs += m sqlite3 curl
+callsign_lookup_libs += m curl
 
 # If building DEBUG release
 ifeq (${DEBUG},y)
 WARN_FLAGS := -Wall -pedantic -Wno-unused-variable -Wno-unused-function #-Wno-missing-braces
 ERROR_FLAGS += -Werror 
 # Sanitizer options
-#SAN_FLAGS := -fsanitize=address
-#SAN_LDFLAGS := -fsanitize=address -static-libasan
+SAN_FLAGS := -fsanitize=address
+SAN_LDFLAGS := -fsanitize=address -static-libasan
 OPT_FLAGS += -ggdb3 -fno-omit-frame-pointer
 endif
 OPT_FLAGS += -O2
@@ -38,3 +38,4 @@ CFLAGS += -DUSE_POSTGRESQL
 endif
 
 callsign_lookup_ldflags := ${LDFLAGS} $(foreach x,${callsign_lookup_libs},-l${x})
+callsign_lookup_ldflags += $(shell pkg-config --libs spatialite)
