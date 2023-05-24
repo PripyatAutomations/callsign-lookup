@@ -24,13 +24,13 @@ static char *complete_mh(const char *locator) {
     int len = strlen(locator);
 
     if (len > 10 || len < 4) {
-       fprintf(stdout, "* ERROR grid square must be between 4 and 10 digits. More digits provides more accuracy. Current length: %d. Returning NULL!\n\n", len);
+       fprintf(stdout, "+ERROR grid square must be between 4 and 10 digits. More digits provides more accuracy. Current length: %d. Returning NULL!\n\n", len);
        return NULL;
     }
 
     // Alert that we got an odd length string
     if (len % 2 != 0) {
-       fprintf(stdout, "ERROR gridsquares must contain an even number of digits. Your request of %d digits was invalid, returning NULL!\n\n", len);
+       fprintf(stdout, "+ERROR gridsquares must contain an even number of digits. Your request of %d digits was invalid, returning NULL!\n\n", len);
        return NULL;
     }
 
@@ -62,7 +62,7 @@ Coordinates maidenhead2latlon(const char *locator) {
 
    // if grid square is odd length, return error
    if ((len % 2) != 0) {
-      fprintf(stdout, "* ERROR grid squares must be 4-10 digits (A-Z, 0-9) long and even length.\n");
+      fprintf(stdout, "+ERROR grid squares must be 4-10 digits (A-Z, 0-9) long and even length.\n");
       return c;
    }
 
@@ -70,7 +70,7 @@ Coordinates maidenhead2latlon(const char *locator) {
    if (len < 10) {
       if ((lp = complete_mh(locator)) == NULL) {
          // Invalid (uneven length?) grid square passed
-         fprintf(stdout, "* ERROR grid squares must be 4-10 digits (A-Z, 0-9) long and even length.\n");
+         fprintf(stdout, "+ERROR grid squares must be 4-10 digits (A-Z, 0-9) long and even length.\n");
       }
    }
 

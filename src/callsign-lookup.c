@@ -62,13 +62,13 @@ time_t timestr2time_t(const char *str) {
    char *copy = NULL;
 
    if (str == NULL) {
-      fprintf(stderr, "timestr2time_t: passed NULL str\n");
+      fprintf(stderr, "+ERROR timestr2time_t: passed NULL str\n");
       return 0;
    }
    
    size_t len = strlen(str);
    if ((copy = malloc(len + 1)) == NULL) {
-      fprintf(stderr, "timestr2time_t: out of memory\n");
+      fprintf(stderr, "+ERROR timestr2time_t: out of memory\n");
       exit(ENOMEM);
    }
 
@@ -82,8 +82,6 @@ time_t timestr2time_t(const char *str) {
       // Find the numeric value and extract the unit character
       int value = strtol(ptr, &ptr, 10);
       char unit = *ptr;
-
-//      fprintf(stderr, "val: %d, unit: %c\n, copy: %p, ptr: %p (%lu)", value, unit, copy, ptr, (ptr - copy));
 
       switch (unit) {
          case 'y':
@@ -223,7 +221,7 @@ static void callsign_lookup_setup(void) {
             // cache database was succesfully opened
             // XXX: Detect if we need to initialize it -- does table cache exist?
             // XXX: Initialize the tables using sql in sql/cache.sql
-//            log_send(mainlog, LOG_INFO, "calldata cache database opened");
+            log_send(mainlog, LOG_INFO, "calldata cache database opened");
          }
       }
    }
@@ -365,7 +363,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
 
    // try to allocate memory for the calldata_t structure
    if ((cd = malloc(sizeof(calldata_t))) == NULL) {
-      fprintf(stderr, "callsign_cache_find: out of memory!\n");
+      fprintf(stderr, "+ERROR callsign_cache_find: out of memory!\n");
       exit(ENOMEM);
    }
    memset(cd, 0, sizeof(calldata_t));
@@ -883,24 +881,22 @@ typedef struct sockio {
 } sockio_t;
 
 static bool parse_request(const char *line) {
-   //fprintf(stderr, "stdin_cb: Parsing line: %s\n", line);
    if (strlen(line) == 0) {
-      // return true;
-
+      return true;
    } else if (strncasecmp(line, "/HELP", 5) == 0) {
-      fprintf(stderr, "200 OK\n");
-      fprintf(stderr, "*** HELP ***\n");
+      fprintf(stdout, "200 OK\n");
+      fprintf(stdout, "*** HELP ***\n");
       // XXX: Implement NOCACHE
-      fprintf(stderr, "/CALL <CALLSIGN> [NOCACHE]\tLookup a callsign\n");
+      fprintf(stdout, "/CALL <CALLSIGN> [NOCACHE]\tLookup a callsign\n");
       // XXX: Implement optional password
-      fprintf(stderr, "/EXIT\t\t\t\tShutdown the service\n");
-      fprintf(stderr, "/GOODBYE\t\t\tDisconnect from the service, leaving it running\n");
-      fprintf(stderr, "/GRID [GRID|COORD]\t\tGet information about a grid square or lat/lon\n");
-      fprintf(stderr, "/HELP\t\t\t\tThis message\n");
+      fprintf(stdout, "/EXIT\t\t\t\tShutdown the service\n");
+      fprintf(stdout, "/GOODBYE\t\t\tDisconnect from the service, leaving it running\n");
+      fprintf(stdout, "/GRID [GRID|COORD]\t\tGet information about a grid square or lat/lon\n");
+      fprintf(stdout, "/HELP\t\t\t\tThis message\n");
 
-      fprintf(stderr, "*** Planned ***\n");
-      fprintf(stderr, "/GNIS <GRID|COORDS>\t\tLook up the place name for a grid or WGS-84 coordinate\n");
-      fprintf(stderr, "+OK\n\n");
+      fprintf(stdout, "*** Planned ***\n");
+      fprintf(stdout, "/GNIS <GRID|COORDS>\t\tLook up the place name for a grid or WGS-84 coordinate\n");
+      fprintf(stdout, "+OK\n\n");
    } else if (strncasecmp(line, "/CALL", 5) == 0) {
       const char *callsign = line + 6;
 
@@ -957,14 +953,12 @@ static bool parse_request(const char *line) {
            const char *lat_dot = strchr(point, '.');
            const char *lon_dot = strchr(comma, '.');
 
-           if (lat_dot == NULL || lon_dot == NULL) {
-              log_send(mainlog, LOG_DEBUG, "lat_dot (%p) or lon_dot (%p) NULL, precision = 1", lat_dot, lon_dot);
-           } else {
+           if (lat_dot != NULL && lon_dot != NULL) {
               const char *lon_end = lon_dot + strlen(lon_dot);
               lat_digits = (int)((comma - 1) - (lat_dot + 1));	// get lat length
               comma++;						// skip the comma
               lon_digits = (int)(lon_end - (lon_dot + 1));		// figure out lon length
-              log_send(mainlog, LOG_DEBUG, "precision: lat_digits: %lu, lon_digits: %lu", lat_digits, lon_digits);
+//              log_send(mainlog, LOG_DEBUG, "precision: lat_digits: %lu, lon_digits: %lu", lat_digits, lon_digits);
            }
 
            // set the precision of our coordinates
@@ -986,6 +980,7 @@ static bool parse_request(const char *line) {
                  comma++;
               }
            }
+
            float lat = atof(point);	// this stops at the comma after latitude
            float lon = atof(comma);	// this stops at any text after longitude
            coord.latitude = lat;
@@ -1022,22 +1017,18 @@ static bool parse_request(const char *line) {
      float heading_miles = distance * 0.6214;
      fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
      fprintf(stdout, "+EOR\n\n");
-
-//     if (their_grid != NULL) {
-//        free(their_grid);
-//     }
    } else if (strncasecmp(line, "/EXIT", 5) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
-      fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");
+      fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
       fini();
    } else if (strncasecmp(line, "/GOODBYE", 8) == 0) {
       log_send(mainlog, LOG_NOTICE, "Got GOODBYE from client. Disconnecting it.");
-      fprintf(stderr, "+GOODBYE Hope you had a nice session!\n");
+      fprintf(stdout, "+GOODBYE Hope you had a nice session!\n");
       // XXX: Disconnect client
       // XXX: Free the client
    } else {
       // XXX: Someday we should implement a read-line interface and treat this as a callsign lookup ;)
-      fprintf(stderr, "400 Bad Request - Your client sent a request I do not understand... Try /HELP for commands!\n");
+      fprintf(stdout, "400 Bad Request - Your client sent a request I do not understand... Try /HELP for commands!\n");
    }
    
    return false;
@@ -1045,7 +1036,7 @@ static bool parse_request(const char *line) {
 
 static void stdin_cb(EV_P_ ev_io *w, int revents) {
     if (EV_ERROR & revents) {
-       fprintf(stderr, "Error event in stdin watcher\n");
+       fprintf(stderr, "+ERROR Error event in stdin watcher\n");
        return;
     }
 
@@ -1062,7 +1053,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
        ev_io_stop(EV_A, w);
        free(input);
        log_send(mainlog, LOG_CRIT, "got ^D (EOF), exiting!");
-       fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");
+       fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
        fini();
        return;
     }
@@ -1080,7 +1071,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
 
     // If buffer is full and no newline is found, consider it an incomplete line
     if (input->length == BUFFER_SIZE) {
-       fprintf(stderr, "Input buffer full, discarding incomplete line: %s\n", input->buffer);
+       fprintf(stdout, "+ERROR Input buffer full, discarding incomplete line: %s\n", input->buffer);
        input->length = 0;  // Discard the incomplete line
     }
 }
@@ -1102,6 +1093,13 @@ int main(int argc, char **argv) {
    bool res = false;
    InputBuffer *input = NULL;
 
+#if	defined(DEBUG)
+   // setup logging for address sanitizers early
+   setenv("ASAN_OPTIONS", "log_path=asan.log", 1);
+   setenv("UBSAN_OPTIONS", "log_path=ubsan.log", 1);
+#endif
+
+   // start our clock, periodic_cb will refresh in once a second
    now = time(NULL);
 
    // This can't work without a valid configuration...
@@ -1109,12 +1107,13 @@ int main(int argc, char **argv) {
       exit_fix_config();
 
    const char *logpath = dict_get(runtime_cfg, "logpath", "file://callsign-lookup.log");
-
-// setup logging for address sanitizers
-#if	defined(DEBUG)
-   setenv("ASAN_OPTIONS", "log_path=asan.log", 1);
-   setenv("UBSAN_OPTIONS", "log_path=ubsan.log", 1);
-#endif
+   if (logpath != NULL) {
+      mainlog = log_open(logpath);
+   } else {
+      fprintf(stderr, "+ERROR logpath not found, defaulting to stderr!\n");
+      mainlog = log_open("stderr");
+   }
+   log_send(mainlog, LOG_NOTICE, "%s/%s starting up!", progname, VERSION);
 
    // how often should we retry going online?
    online_mode_retry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/retry-delay"));
@@ -1122,22 +1121,8 @@ int main(int argc, char **argv) {
       online_mode_retry = 30;
    }
 
-   if (isatty(1)) {
-      log_send(mainlog, LOG_DEBUG, "stdout (1) is a tty");
-   } else {
-      log_send(mainlog, LOG_DEBUG, "stdout (1) is NOT a tty");
-   }
-
    // initialize site location data
    init_my_coords();
-
-   if (logpath != NULL) {
-      mainlog = log_open(logpath);
-   } else {
-      fprintf(stderr, "logpath not found, defaulting to stderr!\n");
-      mainlog = log_open("stderr");
-   }
-   log_send(mainlog, LOG_NOTICE, "%s/%s starting up!", progname, VERSION);
 
    if ((input = malloc(sizeof(InputBuffer))) == NULL) {
       log_send(mainlog, LOG_CRIT, "malloc(InputBuffer): out of memory!");
@@ -1184,7 +1169,7 @@ int main(int argc, char **argv) {
             calldata = NULL;
          }
       }
-      fprintf(stderr, "+GOODBYE Hope you had a nice session! Exiting.\n");
+      fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
 
       dying = true;
    } else {
