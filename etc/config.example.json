@@ -1,8 +1,8 @@
 {
    "version": 1,
    "logging": {
-      "callsign-lookupd-logpath": "file://callsign-lookup.log",
-      "callsign-lookupd-loglevel": "debug"
+      "callsign-lookup-logpath": "file://callsign-lookup.log",
+      "callsign-lookup-loglevel": "debug"
    },
     "callsign-lookup": {
       "respawn-after-requests": 1000,
