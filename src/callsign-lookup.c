@@ -1072,6 +1072,12 @@ int main(int argc, char **argv) {
       online_mode_retry = 30;
    }
 
+   if (isatty(1)) {
+      log_send(mainlog, LOG_DEBUG, "stdout (1) is a tty");
+   } else {
+      log_send(mainlog, LOG_DEBUG, "stdout (1) is NOT a tty");
+   }
+
    // initialize site location data
    init_my_coords();
 

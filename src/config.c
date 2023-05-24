@@ -116,6 +116,7 @@ yajl_val load_config(void) {
 
    memset(buf, 0, PATH_MAX + 1);
    snprintf(buf, PATH_MAX, "etc/config.json");
+
    if (is_file(buf)) {
       if ((rv = parse_config(buf)) != NULL) {
 //         fprintf(stdout, "Using configuration in %s\n", buf);
