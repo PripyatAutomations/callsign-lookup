@@ -86,7 +86,7 @@ int daemonize(void) {
 }
 
 void fini(int status) {
-   fprintf(stderr, "shutting down: %d", status);
+   fprintf(stderr, "shutting down: %d\n", status);
 //   dump_statistics(cfg->Get("path.statsfile", NULL));
    close(pidfd);
    pidfd = -1;
@@ -96,17 +96,17 @@ void fini(int status) {
 
 // Catch signals
 static void sighandler(int signum) {
-   fprintf(stderr, "caught signal %d...", signum);
+   fprintf(stderr, "caught signal %d...\n", signum);
    switch(signum) {
       // Convenience signals
       case SIGHUP:
-         fprintf(stderr, "Reloading!");
+         fprintf(stderr, "Reloading!\n");
          break;
       case SIGUSR1:
-         fprintf(stderr, "Dumping database to disk");
+         fprintf(stderr, "Dumping database to disk\n");
          break;
       case SIGUSR2:
-         fprintf(stderr, "Dumping statistics to disk");
+         fprintf(stderr, "Dumping statistics to disk\n");
 //         dump_statistics(cfg->Get("path.statsfile", NULL));
          break;
       // Fatal signals
@@ -115,7 +115,7 @@ static void sighandler(int signum) {
       case SIGKILL:
          fini(signum);
       default:
-         fprintf(stderr, "Caught unknown signal %d", signum);
+         fprintf(stderr, "Caught unknown signal %d\n", signum);
          break;
    }
 }

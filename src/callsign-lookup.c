@@ -941,13 +941,26 @@ static bool parse_request(const char *line) {
         return false;
      }
 
-     if (point != NULL) {
-        comma = strchr(point, ',');
+     // skip leading whitespace...
+     const char *p = point;
+     while (p != NULL && (*p == ' ' || *p == '\t')) {
+        p++;
+     }
+
+     // if no point is passed...
+     if (p != NULL) {
+        comma = strchr(p, ',');
 
         if (comma == NULL) {
-           size_t point_len = strlen(point);
+           // skip leading spaces
+           size_t point_len = strlen(p);
+           // is it too long?
+           if (point_len > 10) {
+              fprintf(stderr, "+ERROR Invalid grid square '%s' (over 10 characters)\n", point);
+              return false;
+           }
            memset(dupe_point, 0, 11);
-           memcpy(dupe_point, point, point_len);
+           memcpy(dupe_point, p, point_len);
           
            // upper case it, for readability
            for (int i = 0; i < point_len; i++) {
@@ -955,13 +968,20 @@ static bool parse_request(const char *line) {
               if (!isdigit(dupe_point[i])) {
                  dupe_point[i] = toupper(point[i]);
               } else {
-                 dupe_point[i] = point[i];
+                 dupe_point[i] = p[i];
               }
            }
            coord = maidenhead2latlon(dupe_point);
         } else {
+           // skip leading white space
+           const char *p = point;
+           while (p != NULL && (*p == ' ' || *p == '\t')) {
+              p++;
+           }
+
+           // Calculate how many digits of precision we can accomodate with the data given
            int lat_digits = 0, lon_digits = 0;
-           const char *lat_dot = strchr(point, '.');
+           const char *lat_dot = strchr(p, '.');
            const char *lon_dot = strchr(comma, '.');
 
            if (lat_dot != NULL && lon_dot != NULL) {
@@ -970,6 +990,9 @@ static bool parse_request(const char *line) {
               comma++;						// skip the comma
               lon_digits = (int)(lon_end - (lon_dot + 1));		// figure out lon length
 //              log_send(mainlog, LOG_DEBUG, "precision: lat_digits: %lu, lon_digits: %lu", lat_digits, lon_digits);
+           } else {
+              fprintf(stdout, "+ERROR: You must specify at least one decimal place for each coordinate\n");
+              return false;
            }
 
            // set the precision of our coordinates
@@ -986,13 +1009,13 @@ static bool parse_request(const char *line) {
            if (comma == NULL) {		// this is an error
               log_send(mainlog, LOG_CRIT, "cfg:site/coordinates is invalid (no value after comma)!");
               return false;
-           } else  if (*comma == ' ') {	// trim leading white space
+           } else  if (*comma == ' ') {	// trim leading white space on longitude
               while (*comma == ' ') {
                  comma++;
               }
            }
 
-           float lat = atof(point);	// this stops at the comma after latitude
+           float lat = atof(p);		// this stops at the comma after latitude
            float lon = atof(comma);	// this stops at any text after longitude
            coord.latitude = lat;
            coord.longitude = lon;
@@ -1010,6 +1033,8 @@ static bool parse_request(const char *line) {
         fprintf(stdout, "Grid: %s\n", their_grid);
      }
 
+     // XXX: this is ugly, can we make it more compact?
+//     fprintf(stdout, "WGS-84: %*f, %*f\n", coord.precision, coord.latitude, coord.precision, coord.longitude);
      if (coord.precision >= 5) {
         fprintf(stdout, "WGS-84: %.5f, %.5f\n", coord.latitude, coord.longitude);
      } else if (coord.precision <= 4) {
