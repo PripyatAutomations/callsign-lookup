@@ -688,21 +688,25 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
       if ((tm_fetched = localtime(&calldata->cache_fetched)) == NULL) {
          log_send(mainlog, LOG_CRIT, "localtime() failed");
+         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
          exit(255);
       }
 
       if (strftime(fetched, 128, "%Y/%m/%d %H:%M:%S", tm_fetched) == 0 && errno != 0) {
          log_send(mainlog, LOG_CRIT, "strftime() failed");
+         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
          exit(254);
       }
 
       if ((tm_expiry = localtime(&calldata->cache_expiry)) == NULL) {
          log_send(mainlog, LOG_CRIT, "localtime() failed");
+         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
          exit(255);
       }
 
       if (strftime(expiry, 128, "%Y/%m/%d %H:%M:%S", tm_expiry) == 0 && errno != 0) {
          log_send(mainlog, LOG_CRIT, "strftime() failed");
+         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
          exit(254);
       }
 
@@ -1162,6 +1166,7 @@ int main(int argc, char **argv) {
 
    // setup stdin
    if ((input = malloc(sizeof(InputBuffer))) == NULL) {
+      fprintf(stderr, "out of memory!\n");
       log_send(mainlog, LOG_CRIT, "malloc(InputBuffer): out of memory!");
       exit(ENOMEM);
    }

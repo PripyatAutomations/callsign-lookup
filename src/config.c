@@ -143,6 +143,13 @@ yajl_val load_config(void) {
 //         fprintf(stdout, "Using configuration in %s\n", buf);
    }
 
+   // and then the global directory, if config in pwd wasn't found...
+   memset(buf, 0, PATH_MAX + 1);
+   snprintf(buf, PATH_MAX, "/etc/ft8goblin/config.json");
+   if (is_file(buf) && (rv = parse_config(buf)) != NULL) {
+//         fprintf(stdout, "Using configuration in %s\n", buf);
+   }
+
    if (rv == NULL) {
       fprintf(stdout, "No configuration found\n");
       exit(1);
