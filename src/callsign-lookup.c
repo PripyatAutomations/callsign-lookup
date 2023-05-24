@@ -707,6 +707,7 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
    char *opclass = NULL;
    if (calldata->opclass[0] != '\0') {
+      // Parse out US callsign classes to names
       if (strcasecmp(calldata->country, "United States") == 0) {
          switch(calldata->opclass[0]) {
             case 'N':
@@ -727,8 +728,12 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
             default:
                break;
          }
+      } else {
+         opclass = calldata->opclass;
       }
-      if (opclass != NULL) {
+
+      // is it a valid pointer with non-empty content?
+      if (opclass != NULL && opclass[0] != '\0') {
          fprintf(stdout, "Class: %s\n", opclass);
       }
    }
@@ -998,8 +1003,19 @@ static bool parse_request(const char *line) {
      } else {
         fprintf(stdout, "Grid: %s\n", their_grid);
      }
-        
-     fprintf(stdout, "WGS-84: %.4f, %.4f\n", coord.latitude, coord.longitude);
+
+     if (coord.precision >= 5) {
+        fprintf(stdout, "WGS-84: %.5f, %.5f\n", coord.latitude, coord.longitude);
+     } else if (coord.precision <= 4) {
+        fprintf(stdout, "WGS-84: %.4f, %.4f\n", coord.latitude, coord.longitude);
+     } else if (coord.precision <= 3) {
+        fprintf(stdout, "WGS-84: %.3f, %.3f\n", coord.latitude, coord.longitude);
+     } else if (coord.precision <= 2) {
+        fprintf(stdout, "WGS-84: %.2f, %.2f\n", coord.latitude, coord.longitude);
+     } else if (coord.precision <= 1) {
+        fprintf(stdout, "WGS-84: %.1f, %.1f\n", coord.latitude, coord.longitude);
+     }
+
      double distance = calculateDistance(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
      double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
 

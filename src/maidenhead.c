@@ -74,6 +74,9 @@ Coordinates maidenhead2latlon(const char *locator) {
       }
    }
 
+   // set the precision so we have appropriate decimal places
+   c.precision = (strlen(locator) / 2);
+
    // calculate latitude
    field      = (toupper(lp[1]) - 'A') * 10.0;
    square     = (lp[3] - '0') * 1.0;
