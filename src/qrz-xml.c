@@ -23,9 +23,9 @@ extern char *progname;
 static const char *qrz_user = NULL, *qrz_pass = NULL, *qrz_api_key = NULL, *qrz_api_url;
 static qrz_session_t *qrz_session = NULL;
 static bool already_logged_in = false;
-extern time_t now;
 bool qrz_active = true;
-
+extern bool offline;		// from callsign-lookup.c
+extern time_t now;
 // XXX: Add some code to support retrying login a few times, if error other than invalid credentials occurs
 static int qrz_login_tries = 0, qrz_max_login_tries = 3;
 static time_t qrz_last_login_try = -1;
@@ -475,19 +475,25 @@ bool http_post(const char *url, const char *postdata, char *buf, size_t bufsz) {
 
    if (res != CURLE_OK) {
       log_send(mainlog, LOG_CRIT, "qrz: http_post: curl_easy_perform() failed: %s", curl_easy_strerror(res));
+      fprintf(stdout, "+ERROR Error accessing QRZ: %s\n", curl_easy_strerror(res));
+      offline = true;
+      // cleanup
       // free the string since the result was a failure
       free(s.ptr);
       s.ptr = NULL;
       s.len = -1;
+      curl_easy_cleanup(curl);
+      curl_global_cleanup();
+
       return false;
    } else if (s.len > 0) {
       // if anything was retrieved, send it to the parser
       snprintf(buf, bufsz, "%s", s.ptr);
    }
+   // cleanup
    free(s.ptr);
    s.ptr = NULL;
    s.len = -1;
-   
    curl_easy_cleanup(curl);
    curl_global_cleanup();
 
@@ -503,7 +509,6 @@ bool qrz_start_session(void) {
 
    qrz_user = cfg_get_str(cfg, "callsign-lookup/qrz-username");
    qrz_pass = cfg_get_str(cfg, "callsign-lookup/qrz-password");
-//   qrz_api_key = cfg_get_str(cfg, "callsign-lookup/qrz-api-key");
    qrz_api_url = cfg_get_str(cfg, "callsign-lookup/qrz-api-url");
 
    // if any settings are missing cry and return error
@@ -525,9 +530,10 @@ bool qrz_start_session(void) {
 
       // reset the failure counter...
       qrz_login_tries = 0;
+      offline = false;
       return true;
    } else {
-      log_send(mainlog, LOG_CRIT, "error logging into QRZ ;(");
+      offline = true;
 
       // log a failed attempt
       qrz_login_tries++;
