@@ -557,14 +557,10 @@ calldata_t *qrz_lookup_callsign(const char *callsign) {
       return false;
    }
    
-   if (qrz_api_url == NULL || qrz_session == NULL) {
-      log_send(mainlog, LOG_WARNING, "qrz_lookup_callsign failed, XML API session is not yet active!");
-      log_send(mainlog, LOG_WARNING, "callsign: %p <%s> api_url %p <%s> session <%p>", callsign, callsign, qrz_api_url, qrz_api_url, qrz_session);
-      if (qrz_start_session() == false) {
-         log_send(mainlog, LOG_CRIT, "Attempting to start QRZ session failed!");
-//         offline = true;
-         return false;
-      }
+   if (qrz_session == NULL && (qrz_start_session() == false)) {
+      log_send(mainlog, LOG_CRIT, "Attempting to start QRZ session failed!");
+      // yuck
+      sleep(1);
    }
 
    memset(calldata, 0, sizeof(calldata_t));

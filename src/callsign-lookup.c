@@ -240,7 +240,7 @@ static void callsign_lookup_setup(void) {
       }
    }
 
-   // should the process die with status 0 after X requests and be restarted?
+   // after X requests, should we exit with 0 status and restart?
    callsign_max_requests = cfg_get_int(cfg, "callsign-lookup/respawn-after-requests");
 
    // if invalid value, disable this feature
