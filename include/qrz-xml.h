@@ -23,6 +23,7 @@ extern "C" {
 
    extern bool qrz_start_session(void);
    extern calldata_t *qrz_lookup_callsign(const char *callsign);
+   extern Config_t Config;		// from clalsign-lookup.c
 #ifdef __cplusplus
 };
 #endif

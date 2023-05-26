@@ -29,7 +29,7 @@
 #include "qrz-xml.h"
 #include "sql.h"
 #include "maidenhead.h"
-
+#include "util.h"
 #define	PROTO_VER	1
 
 // Local types.. Gross!
@@ -40,8 +40,13 @@ typedef struct {
    int		fd;
 } InputBuffer;
 
+struct Config Config = {
+  .cache_default_expiry = 86400 * 3,	// 3 days
+  .offline = true,
+  .use_cache = true
+};
+
 // globals.. yuck ;)
-bool offline = false;
 static bool callsign_use_uls = false, callsign_use_qrz = false,
             callsign_initialized = false, callsign_use_cache = false;
 static const char *callsign_cache_db = NULL;
@@ -50,78 +55,16 @@ static time_t online_mode_retry = 0, online_last_retry = 0;
 static bool callsign_keep_stale_offline = false, qrz_active = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
+static const char *my_grid = NULL;
+static Coordinates my_coords = { 0, 0 };
 static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
 static sqlite3_stmt *cache_expire_stmt = NULL;
-static const char *my_grid = NULL;
-static Coordinates my_coords = { 0, 0 };
 
 // common shared things for our library
 const char *progname = "callsign-lookup";
 bool dying = 0;
 time_t now = -1;
-
-time_t timestr2time_t(const char *str) {
-   time_t seconds = 0;
-   char *copy = NULL;
-
-   if (str == NULL) {
-      fprintf(stderr, "+ERROR timestr2time_t: passed NULL str\n");
-      return 0;
-   }
-   
-   size_t len = strlen(str);
-   if ((copy = malloc(len + 1)) == NULL) {
-      fprintf(stderr, "+ERROR timestr2time_t: out of memory\n");
-      exit(ENOMEM);
-   }
-
-   memset(copy, 0, len + 1);
-   memcpy(copy, str, len);
-
-   char *multipliers = "ywdhms";
-   char *ptr = copy;
-
-   while (*ptr != '\0') {
-      // Find the numeric value and extract the unit character
-      int value = strtol(ptr, &ptr, 10);
-      char unit = *ptr;
-
-      switch (unit) {
-         case 'y':
-            seconds += value * 365 * 24 * 60 * 60;  // Convert years to seconds (assuming 365 days per year)
-            break;
-         case 'w':
-            seconds += value * 7 * 24 * 60 * 60;  // Convert weeks to seconds
-            break;
-         case 'd':
-            seconds += value * 24 * 60 * 60;  // Convert days to seconds
-            break;
-         case 'h':
-            seconds += value * 60 * 60;  // Convert hours to seconds
-            break;
-         case 'm':
-            seconds += value * 60;  // Convert minutes to seconds
-            break;
-         case 's':
-            seconds += value;  // Add seconds
-            break;
-      }
-
-      ptr++;  // Move to the next character
-   }
-
-   free(copy);  // Free the memory allocated for the copy
-   return seconds;
-}
-
-bool str2bool(const char *str, bool def) {
-   if (strcasecmp(str, "true") == 0 || strcasecmp(str, "on") == 0 || strcasecmp(str, "yes") == 0) {
-      return true;
-   }
-
-   return def;
-}
 
 static void sql_fini(void) {
    if (cache_insert_stmt != NULL) {
@@ -368,7 +311,6 @@ calldata_t *callsign_cache_find(const char *callsign) {
    int idx_longitude = 0, idx_county = 0, idx_class = 0, idx_codes = 0, idx_email = 0, idx_views = 0;
    int idx_effective = 0, idx_expiry = 0, idx_cache_expiry = 0, idx_cache_fetched = 0;
 
-
    // if no callsign given, bail
    if (callsign == NULL) {
       log_send(mainlog, LOG_CRIT, "callsign_cache_find: callsign == NULL");
@@ -511,7 +453,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
    // is it expired?
    if (cd->cache_expiry <= now) {
       // are we offline? are we keeping stale results if offline?
-      if (offline) {
+      if (Config.offline) {
          // are we configured to discard even when offline?
          if (!callsign_keep_stale_offline) {
             log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry), forcing cache deletion", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
@@ -551,7 +493,7 @@ calldata_t *callsign_lookup(const char *callsign) {
 
    // XXX: If offline, check last online_last_retry and if it's been long
    // XXX: enough, try to reconnect before the QRZ check
-   if (offline) {
+   if (Config.offline) {
       if (online_last_retry == 0 || (online_last_retry + online_mode_retry <= now)) {
          if (callsign_use_qrz && !qrz_active) {
             res = qrz_start_session();
@@ -561,15 +503,15 @@ calldata_t *callsign_lookup(const char *callsign) {
             // if logging into qrz failed, set offline mode
             if (res == false) {
                log_send(mainlog, LOG_CRIT, "Failed logging into QRZ, setting offline mode!");
-               offline = true;
+               Config.offline = true;
             } else {	// if we logged in, clear offline mode
-               offline = false;
+               Config.offline = false;
             }
          }
       }
    }
    // nope, check QRZ XML API, if the user has an account
-   if (!offline && callsign_use_qrz && qr == NULL) {
+   if (!Config.offline && callsign_use_qrz && qr == NULL) {
       if ((qr = qrz_lookup_callsign(callsign)) != NULL) {
          log_send(mainlog, LOG_DEBUG, "got qrz calldata for %s", callsign);
       }
@@ -1191,7 +1133,7 @@ int main(int argc, char **argv) {
    printf("+PROTO %d mytime=%lu\n", PROTO_VER, now);
    printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n",
          progname, VERSION,
-         (callsign_use_qrz ? "On" : "Off"), (offline ? " (offline)" : ""),
+         (callsign_use_qrz ? "On" : "Off"), (Config.offline ? " (offline)" : ""),
          (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
          (callsign_use_cache ? "On" : "Off"));
 

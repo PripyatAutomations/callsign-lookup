@@ -19,12 +19,13 @@
 #include <sys/param.h>
 #include <string.h>
 #include <time.h>
+
+extern struct Config Config;	// in callsign-lookup.c
 extern char *progname;
 static const char *qrz_user = NULL, *qrz_pass = NULL, *qrz_api_key = NULL, *qrz_api_url;
 static qrz_session_t *qrz_session = NULL;
 static bool already_logged_in = false;
 bool qrz_active = true;
-extern bool offline;		// from callsign-lookup.c
 extern time_t now;
 // XXX: Add some code to support retrying login a few times, if error other than invalid credentials occurs
 static int qrz_login_tries = 0, qrz_max_login_tries = 3;
@@ -476,7 +477,7 @@ bool http_post(const char *url, const char *postdata, char *buf, size_t bufsz) {
    if (res != CURLE_OK) {
       log_send(mainlog, LOG_CRIT, "qrz: http_post: curl_easy_perform() failed: %s", curl_easy_strerror(res));
       fprintf(stdout, "+ERROR Error accessing QRZ: %s\n", curl_easy_strerror(res));
-      offline = true;
+      Config.offline = true;
       // cleanup
       // free the string since the result was a failure
       free(s.ptr);
@@ -530,10 +531,10 @@ bool qrz_start_session(void) {
 
       // reset the failure counter...
       qrz_login_tries = 0;
-      offline = false;
+      Config.offline = false;
       return true;
    } else {
-      offline = true;
+      Config.offline = true;
 
       // log a failed attempt
       qrz_login_tries++;
