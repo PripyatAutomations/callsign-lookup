@@ -39,7 +39,6 @@ static char *complete_mh(const char *locator) {
 
     // This copies the locator, leaving the padding (from LL55LL55LL) in place to get center of the gridsquare
     memcpy(locator2, locator, len);
-    log_send(mainlog, LOG_DEBUG, "complete_mh padded gridsquare %s (%d) to %s (%d)", locator, len, locator2, 10);
     return locator2;
 }
 
