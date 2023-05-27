@@ -613,7 +613,7 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
    // Lookup for N0CALL was answered by the cache.
    // The answer originally came from QRZ at Mon May  8 06:18:00 AM EDT 2023
    // and will expire (if we go online) at Thu May 11 06:18:00 AM EDT 2023.
-   fprintf(stdout, "200 OK %s ONLINE %lu %s\n", calldata->callsign, time(NULL), origin_name[calldata->origin]);
+   fprintf(stdout, "200 OK %s %s %lu %s\n", calldata->callsign, online, time(NULL), origin_name[calldata->origin]);
    fprintf(stdout, "Callsign: %s\n", calldata->callsign);
 
    fprintf(stdout, "Cached: %s\n", (calldata->cached ? "true" : "false"));
@@ -842,7 +842,7 @@ static bool parse_request(const char *line) {
    if (strlen(line) == 0) {
       return true;
    } else if (strncasecmp(line, "/HELP", 5) == 0) {
-      fprintf(stdout, "200 OK\n");
+      fprintf(stdout, "200 OK Help Text\n");
       fprintf(stdout, "*** HELP ***\n");
       // XXX: Implement NOCACHE
       fprintf(stdout, "/CALL <CALLSIGN> [NOCACHE]\tLookup a callsign\n");
