@@ -47,11 +47,7 @@ struct Config Config = {
 };
 
 // globals.. yuck ;)
-static bool callsign_use_uls = false, callsign_use_qrz = false,
-            callsign_initialized = false, callsign_use_cache = false;
 static const char *callsign_cache_db = NULL;
-static time_t callsign_cache_expiry = 86400 * 3;		// 3 days
-static time_t online_mode_retry = 0, online_last_retry = 0;
 static bool callsign_keep_stale_offline = false, qrz_active = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
@@ -115,64 +111,64 @@ void run_sql_expire(void) {
 
 // Load the configuration (cfg_get_str(...)) into *our* configuration locals
 static void callsign_lookup_setup(void) {
-   callsign_initialized = true;
+   Config.initialized = true;
 
    // Use local ULS database?
    const char *s = cfg_get_str(cfg, "callsign-lookup/use-uls");
 
    if (strncasecmp(s, "true", 4) == 0) {
-      callsign_use_uls = true;
+      Config.use_uls = true;
    } else {
-      callsign_use_uls = false;
+      Config.use_uls = false;
    }
 
    // use QRZ XML API?
    s = cfg_get_str(cfg, "callsign-lookup/use-qrz");
 
    if (strncasecmp(s, "true", 4) == 0) {
-      callsign_use_qrz = true;
+      Config.use_qrz = true;
    } else {
-      callsign_use_qrz = false;
+      Config.use_qrz = false;
    }
 
    // use QRZ XML API?
    s = cfg_get_str(cfg, "callsign-lookup/use-qrz");
 
    if (strncasecmp(s, "true", 4) == 0) {
-      callsign_use_qrz = true;
+      Config.use_qrz = true;
    } else {
-      callsign_use_qrz = false;
+      Config.use_qrz = false;
    }
 
    // Use local cache db?
    s = cfg_get_str(cfg, "callsign-lookup/use-cache");
 
    if (strncasecmp(s, "true", 4) == 0) {
-      callsign_use_cache = true;
+      Config.use_cache = true;
    } else {
-      callsign_use_cache = false;
+      Config.use_cache = false;
    }
 
-   if (callsign_use_cache) {
+   if (Config.use_cache) {
       // is cache database configured?
       s = cfg_get_str(cfg, "callsign-lookup/cache-db");
       if (s == NULL) {
          log_send(mainlog, LOG_CRIT, "callsign_lookup_setup: Failed to find cache-db in config! Disabling cache...");
       } else {
          callsign_cache_db = s;
-         callsign_cache_expiry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/cache-expiry"));
-         log_send(mainlog, LOG_DEBUG, "setting default callsign cache expiry to %lu seconds (from config)", callsign_cache_expiry);
+         Config.cache_default_expiry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/cache-expiry"));
+         log_send(mainlog, LOG_DEBUG, "setting default callsign cache expiry to %lu seconds (from config)", Config.cache_default_expiry);
 
          // minimum 1 hour cache lifetime
-         if (callsign_cache_expiry < 3600) {
-            log_send(mainlog, LOG_WARNING, "callsign-lookup/cache-expiry %lu is too low, defaulting to 1 hour. If you wish to disable caching, set callsign-lookup/use-cache to false instead.", callsign_cache_expiry);
-            callsign_cache_expiry = 3600;
+         if (Config.cache_default_expiry < 3600) {
+            log_send(mainlog, LOG_WARNING, "callsign-lookup/cache-expiry %lu is too low, defaulting to 1 hour. If you wish to disable caching, set callsign-lookup/use-cache to false instead.", Config.cache_default_expiry);
+            Config.cache_default_expiry = 3600;
          }
          callsign_keep_stale_offline = str2bool(cfg_get_str(cfg, "callsign-lookup/cache-keep-stale-if-offline"), true);
 
          if ((calldata_cache = sql_open(callsign_cache_db)) == NULL) {
             log_send(mainlog, LOG_CRIT, "callsign_lookup_setup: failed opening cache %s! Disabling caching!", callsign_cache_db);
-            callsign_use_cache = false;
+            Config.use_cache = false;
             calldata_cache = NULL;
          } else {
             // cache database was succesfully opened
@@ -203,7 +199,7 @@ bool callsign_cache_save(calldata_t *cp) {
    }
 
    // if caching is disabled, act like it successfully saved
-   if (callsign_use_cache == false) {
+   if (Config.use_cache == false) {
       return true;
    }
 
@@ -239,7 +235,7 @@ bool callsign_cache_save(calldata_t *cp) {
       sqlite3_clear_bindings(cache_insert_stmt);
    }
 
-   cp->cache_expiry = now + callsign_cache_expiry;
+   cp->cache_expiry = now + Config.cache_default_expiry;
    cp->cache_fetched = now;
 
    // bind variables
@@ -481,24 +477,24 @@ calldata_t *callsign_lookup(const char *callsign) {
    calldata_t *qr = NULL;
 
    // has callsign_lookup_setup() been called yet?
-   if (!callsign_initialized) {
+   if (!Config.initialized) {
       callsign_lookup_setup();
    }
 
    // If enabled, Look in cache first
-   if (callsign_use_cache && (qr = callsign_cache_find(callsign)) != NULL) {
+   if (Config.use_cache && (qr = callsign_cache_find(callsign)) != NULL) {
       log_send(mainlog, LOG_DEBUG, "got cached calldata for %s", callsign);
       from_cache = true;
    }
 
-   // XXX: If offline, check last online_last_retry and if it's been long
+   // XXX: If offline, check last Config.online_last_retry and if it's been long
    // XXX: enough, try to reconnect before the QRZ check
    if (Config.offline) {
-      if (online_last_retry == 0 || (online_last_retry + online_mode_retry <= now)) {
-         if (callsign_use_qrz && !qrz_active) {
+      if (Config.online_last_retry == 0 || (Config.online_last_retry + Config.online_mode_retry <= now)) {
+         if (Config.use_qrz && !qrz_active) {
             res = qrz_start_session();
             qrz_active = true;
-            online_last_retry = now;
+            Config.online_last_retry = now;
 
             // if logging into qrz failed, set offline mode
             if (res == false) {
@@ -511,14 +507,14 @@ calldata_t *callsign_lookup(const char *callsign) {
       }
    }
    // nope, check QRZ XML API, if the user has an account
-   if (!Config.offline && callsign_use_qrz && qr == NULL) {
+   if (!Config.offline && Config.use_qrz && qr == NULL) {
       if ((qr = qrz_lookup_callsign(callsign)) != NULL) {
          log_send(mainlog, LOG_DEBUG, "got qrz calldata for %s", callsign);
       }
    }
 
    // nope, check FCC ULS next since it's available offline
-   if (callsign_use_uls && qr == NULL) {
+   if (Config.use_uls && qr == NULL) {
       if ((qr = uls_lookup_callsign(callsign)) != NULL) {
          log_send(mainlog, LOG_DEBUG, "got uls calldata for %s", callsign);
       }
@@ -595,15 +591,17 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
       return false;
    }
 
+   const char *online = (Config.offline ? "OFFLINE" : "ONLINE");
+
    if (calldata->callsign[0] == '\0') {
-      if (calldata->query_callsign[0] == '\0') {
-         fprintf(stdout, "404 NOT FOUND %lu %s\n", now, calldata->query_callsign);
+      if (calldata->query_callsign[0] != '\0') {
+         fprintf(stdout, "404 NOT FOUND %s %s %lu\n", calldata->query_callsign, online, now);
          log_send(mainlog, LOG_DEBUG, "Lookup for %s failed, not found!\n", calldata->query_callsign);
       } else if (callsign != NULL) {
-         fprintf(stdout, "404 NOT FOUND %lu %s\n", now, callsign);
+         fprintf(stdout, "404 NOT FOUND %s %s %lu\n", callsign, online, now);
       } else {
          log_send(mainlog, LOG_DEBUG, "Lookup failed: query_callsign unset!");
-         fprintf(stdout, "404 NOT FOUND %lu\n", now);
+         fprintf(stdout, "404 NOT FOUND (unknown) %s %lu\n", online, now);
       }
       return false;
    }
@@ -862,8 +860,10 @@ static bool parse_request(const char *line) {
 
       calldata_t *calldata = callsign_lookup(callsign);
 
+      const char *online = (Config.offline ? "OFFLINE" : "ONLINE");
+
       if (calldata == NULL) {
-         fprintf(stdout, "404 NOT FOUND %lu %s\n", now, callsign);
+         fprintf(stdout, "404 NOT FOUND %s %s %lu\n", callsign, online, now);
          log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", callsign);
       } else {
          // Send the result
@@ -1101,9 +1101,9 @@ int main(int argc, char **argv) {
 
    init_signals();
    // how often should we retry going online?
-   online_mode_retry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/retry-delay"));
-   if (online_mode_retry < 30) { // enforce a minimum of 30 seconds between retries
-      online_mode_retry = 30;
+   Config.online_mode_retry = timestr2time_t(cfg_get_str(cfg, "callsign-lookup/retry-delay"));
+   if (Config.online_mode_retry < 30) { // enforce a minimum of 30 seconds between retries
+      Config.online_mode_retry = 30;
    }
 
    // initialize site location data
@@ -1133,9 +1133,9 @@ int main(int argc, char **argv) {
    printf("+PROTO %d mytime=%lu\n", PROTO_VER, now);
    printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n",
          progname, VERSION,
-         (callsign_use_qrz ? "On" : "Off"), (Config.offline ? " (offline)" : ""),
-         (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
-         (callsign_use_cache ? "On" : "Off"));
+         (Config.use_qrz ? "On" : "Off"), (Config.offline ? " (offline)" : ""),
+         (Config.use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
+         (Config.use_cache ? "On" : "Off"));
 
    // run expires at startup (useful for non-daemon users)
    run_sql_expire();
@@ -1152,9 +1152,11 @@ int main(int argc, char **argv) {
             break;
          }
 
+         const char *online = (Config.offline ? "OFFLINE" : "ONLINE");
+
          if (calldata == NULL) {
-            fprintf(stdout, "404 NOT FOUND %lu %s\n", now, callsign);
-            log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", callsign);
+            fprintf(stdout, "404 NOT FOUND %s %s %lu\n", callsign, online, now);
+            log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases (%s).", callsign, online);
          } else {
             calldata_dump(calldata, callsign);
             free(calldata);
@@ -1165,7 +1167,7 @@ int main(int argc, char **argv) {
 
       dying = true;
    } else {
-      log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s", progname, VERSION, (callsign_use_qrz ? "On" : "Off"), (callsign_use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (callsign_use_cache ? "On" : "Off"));
+      log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s", progname, VERSION, (Config.use_qrz ? "On" : "Off"), (Config.use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (Config.use_cache ? "On" : "Off"));
    }
 
    // run the EV main loop...
