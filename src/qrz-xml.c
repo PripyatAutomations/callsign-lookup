@@ -10,15 +10,15 @@
  * Current Version: 1.34
  */
 #define	_XOPEN_SOURCE
-#include "config.h"
-#include "debuglog.h"
-#include "ft8goblin_types.h"
-#include "qrz-xml.h"
-#include "sql.h"
+#include <libied/cfg.h>
+#include <libied/debuglog.h>
+#include <libied/sql.h>
 #include <curl/curl.h>
 #include <sys/param.h>
 #include <string.h>
 #include <time.h>
+#include "ft8goblin_types.h"
+#include "qrz-xml.h"
 
 extern struct Config Config;	// in callsign-lookup.c
 extern char *progname;

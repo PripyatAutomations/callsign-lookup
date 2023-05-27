@@ -10,7 +10,7 @@ POSTGRESQL=n
 
 # required libraries: -l${x} will be expanded later...
 common_libs += yajl ev
-callsign_lookup_libs += m curl
+callsign_lookup_libs += m curl ied termbox2
 
 # If building DEBUG release
 ifeq (${DEBUG},y)
@@ -26,10 +26,10 @@ CFLAGS += ${SAN_FLAGS} ${WARN_FLAGS} ${ERROR_FLAGS} ${OPT_FLAGS} -DDEBUG=1
 
 C_STD := -std=gnu11
 CXX_STD := -std=gnu++17
-CFLAGS += ${C_STD} -I./ext/ -I./include/ -I./ext/ft8_lib/ -fPIC
+CFLAGS += ${C_STD} -I./ -I./ext/ -I./include/ -I./ext/ft8_lib/ -fPIC
 CFLAGS += -DVERSION="\"${VERSION}\""
 CXXFLAGS := ${CXX_STD} $(filter-out ${C_STD},${CFLAGS})
-LDFLAGS += ${SAN_LDFLAGS} -L./lib/
+LDFLAGS += ${SAN_LDFLAGS} -L./libied/ -L./libied/termbox2/
 LDFLAGS += $(foreach x,${common_libs},-l${x})
 
 ifeq (${POSTGRESQL},y)

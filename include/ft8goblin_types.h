@@ -15,7 +15,7 @@
 #define	MAX_CLASS_LEN		11
 #define	MAX_EMAIL		129
 #define	MAX_URL			257
-#include "maidenhead.h"
+#include <libied/maidenhead.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -72,17 +72,6 @@ extern "C" {
       int		itu_zone;			// ITU zone
       char		nickname[MAX_FIRSTNAME];	// nickname
    } calldata_t;
-
-   // Only FT4 and FT8 are supported by ft8_lib, but we can talk to ardop
-   typedef enum {
-     TX_MODE_NONE = 0,
-     TX_MODE_FT8,
-     TX_MODE_FT4,
-//     TX_MODE_JS8,
-//     TX_MODE_PSK11,
-//     TX_MODE_ARDOP_FEC,
-     TX_MODE_END		// invalid, end of list marker
-   } tx_mode_t;
 
    typedef struct Config {
      const char		*cache_db;	// path to cache database

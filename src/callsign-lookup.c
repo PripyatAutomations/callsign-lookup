@@ -11,7 +11,6 @@
 //
 // We then need to save it to the cache (if it didn't come from there already)
 // XXX: We need to make this capable of talking on stdio or via a socket
-#include "config.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <ctype.h>
@@ -20,16 +19,15 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ev.h>
-#include "debuglog.h"
-#include "daemon.h"
-#include "qrz-xml.h"
+#include <libied/debuglog.h>
+#include <libied/sql.h>
+#include <libied/maidenhead.h>
+#include <libied/util.h>
+#include <libied/daemon.h>
 #include "ft8goblin_types.h"
 #include "gnis-lookup.h"
 #include "fcc-db.h"
 #include "qrz-xml.h"
-#include "sql.h"
-#include "maidenhead.h"
-#include "util.h"
 #define	PROTO_VER	1
 
 // Local types.. Gross!
@@ -851,10 +849,18 @@ static bool parse_request(const char *line) {
       fprintf(stdout, "/GOODBYE\t\t\tDisconnect from the service, leaving it running\n");
       fprintf(stdout, "/GRID [GRID|COORD]\t\tGet information about a grid square or lat/lon\n");
       fprintf(stdout, "/HELP\t\t\t\tThis message\n");
+      fprintf(stdout, "/ONLINE\t\t\t\tSet online mode\n");
+      fprintf(stdout, "/OFFLINE\t\t\tSet offline mode\n");
 
       fprintf(stdout, "*** Planned ***\n");
       fprintf(stdout, "/GNIS <GRID|COORDS>\t\tLook up the place name for a grid or WGS-84 coordinate\n");
       fprintf(stdout, "+OK\n\n");
+   } else if (strncasecmp(line, "/ONLINE", 7) == 0) {
+      Config.offline = false;
+      fprintf(stdout, "+ONLINE\n\n");
+   } else if (strncasecmp(line, "/OFFLINE", 8) == 0) {
+      Config.offline = true;
+      fprintf(stdout, "+OFFLINE\n\n");
    } else if (strncasecmp(line, "/CALL", 5) == 0) {
       const char *callsign = line + 6;
 

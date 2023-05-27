@@ -1,8 +1,14 @@
-#include "config.h"
-#include "ft8goblin_types.h"
-#include "gnis-lookup.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
 #include <sqlite3.h>
 #include <spatialite.h>
+#include <libied/cfg.h>
+#include "ft8goblin_types.h"
+#include "gnis-lookup.h"
 
 /*
  * Query the local copy of GNIS database to find a locality near a WGS-84 coordinate

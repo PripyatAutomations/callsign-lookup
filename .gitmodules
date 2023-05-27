@@ -1,0 +1,3 @@
+[submodule "libied"]
+	path = libied
+	url = https://github.com/PripyatAutomations/libied.git

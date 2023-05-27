@@ -5,8 +5,8 @@
  *
  * Hopefully I'll get around to cleaning up the scripts for that and including them soon!
  */
-#include "config.h"
-#include "sql.h"
+#include <libied/cfg.h>
+#include <libied/sql.h>
 #include "ft8goblin_types.h"
 
 calldata_t *uls_lookup_callsign(const char *callsign) {
