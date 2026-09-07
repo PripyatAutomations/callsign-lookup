@@ -1,0 +1,1 @@
+apt install libspatialite-dev

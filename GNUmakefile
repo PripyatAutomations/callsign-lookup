@@ -2,6 +2,7 @@ VERSION = 20230524
 #CC := clang
 all: world
 bins := callsign-lookup
+librustyaxe ?= ../librustyaxe.so
 
 include mk/config.mk
 extra_distclean += etc/calldata-cache.db etc/fcc-uls.db
@@ -20,7 +21,7 @@ extra_clean += ${real_bins}
 #################
 # Build Targets #
 #################
-bin/callsign-lookup: libied/lib/libied.so ${callsign_lookup_real_objs}
+bin/callsign-lookup: ${librustyaxe} ${callsign_lookup_real_objs}
 	@echo "[Linking] $@"
 	@${CC} -o $@ ${SAN_LDFLAGS} ${callsign_lookup_real_objs} ${callsign_lookup_ldflags} ${LDFLAGS}
 

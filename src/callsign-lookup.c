@@ -19,11 +19,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ev.h>
-#include <libied/debuglog.h>
-#include <libied/sql.h>
-#include <libied/maidenhead.h>
-#include <libied/util.h>
-#include <libied/daemon.h>
+#include <librustyaxe/core.h>
 #include "ft8goblin_types.h"
 #include "gnis-lookup.h"
 #include "fcc-db.h"

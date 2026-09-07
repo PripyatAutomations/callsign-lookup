@@ -1,5 +1,4 @@
-#include <libied/cfg.h>
-#include <libied/sql.h>
+#include <librustyaxe/core.h>
 #include "ft8goblin_types.h"
 
 #if	!defined(_fcc_db_h)
