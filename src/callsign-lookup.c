@@ -52,6 +52,13 @@ static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
 static sqlite3_stmt *cache_expire_stmt = NULL;
 
+static const char *configs[] = {
+   "/etc/rustyrig/callsign-lookup.cfg",
+   "./config/callsign-lookup.cfg",
+   "~/.config/callsign-lookup.cfg"
+};
+static const int num_configs = sizeof(configs) / sizeof(configs[0]);
+
 // common shared things for our library
 const char *progname = "callsign-lookup";
 bool dying = 0;
@@ -527,7 +534,8 @@ calldata_t *callsign_lookup(const char *callsign) {
 }
 
 static void exit_fix_config(void) {
-   printf("Please edit your config.json and try again!\n");
+   fprintf(stderr, "Unable to find a callsign-lookup configuration.\n");
+   fprintf(stderr, "Use -f FILE or create one of the standard config files.\n");
    exit(255);
 }
 
@@ -1085,8 +1093,18 @@ int main(int argc, char **argv) {
       }
    }
 
-   // This can't work without a valid configuration...
-   if (!config_file || !(cfg = cfg_load(config_file)))
+   // Use an explicit file when requested, otherwise search the standard
+   // standalone locations just like rrclient and rrserver do.
+   if (config_file) {
+      cfg = cfg_load(config_file);
+   } else {
+      char *fullpath = find_file_by_list(configs, num_configs);
+      if (fullpath) {
+         config_file = fullpath;
+         cfg = cfg_load(config_file);
+      }
+   }
+   if (!config_file || !cfg)
       exit_fix_config();
    logger_init("-", false);
    log_send(mainlog, LOG_NOTICE, "%s/%s starting up!", progname, VERSION);
