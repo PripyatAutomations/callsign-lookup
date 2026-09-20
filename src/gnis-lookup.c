@@ -6,7 +6,6 @@
 #include <string.h>
 #include <sqlite3.h>
 #include <spatialite.h>
-#include <libied/cfg.h>
 #include "ft8goblin_types.h"
 #include "gnis-lookup.h"
 
@@ -18,15 +17,9 @@ bool use_gnis = false;
 static const char *gnis_db = NULL;
 
 int gnis_init(void) {
-   const char *s = cfg_get_str(cfg, "gnis-lookup/use-gnis");
+   use_gnis = cfg_get_bool("gnis-lookup.use-gnis", false);
 
-   if (s != NULL && strncasecmp(s, "true", 4) == 0) {
-      use_gnis = true;
-   } else {
-      use_gnis = false;
-   }
-
-   s = cfg_get_str(cfg, "gnis-lookup/gnis-db");
+   const char *s = cfg_get("gnis-lookup.gnis-db");
    if (s != NULL) {
       gnis_db = s;
    }

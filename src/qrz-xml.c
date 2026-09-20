@@ -3,16 +3,13 @@
  *
  * This is only useful for paid QRZ members.
  *
- * We cache results into cfg:callsign-lookup/cache-db for cfg:callsign-lookup/cache-expiry
+ * We cache results into cfg:callsign-lookup.cache-db for cfg:callsign-lookup.cache-expiry
  * (in etc/callsign-cache.db for 3 days by default)
  *
  * Reference: https://www.qrz.com/XML/current_spec.html
  * Current Version: 1.34
  */
 #define	_XOPEN_SOURCE
-#include <libied/cfg.h>
-#include <libied/debuglog.h>
-#include <libied/sql.h>
 #include <curl/curl.h>
 #include <sys/param.h>
 #include <string.h>
@@ -508,13 +505,13 @@ bool qrz_start_session(void) {
    memset(buf, 0, 4097);
    memset(outbuf, 0, 4097);
 
-   qrz_user = cfg_get_str(cfg, "callsign-lookup/qrz-username");
-   qrz_pass = cfg_get_str(cfg, "callsign-lookup/qrz-password");
-   qrz_api_url = cfg_get_str(cfg, "callsign-lookup/qrz-api-url");
+   qrz_user = cfg_get("callsign-lookup.qrz-username");
+   qrz_pass = cfg_get("callsign-lookup.qrz-password");
+   qrz_api_url = cfg_get("callsign-lookup.qrz-api-url");
 
    // if any settings are missing cry and return error
    if (qrz_user == NULL || qrz_pass == NULL || qrz_api_url == NULL) {
-      log_send(mainlog, LOG_CRIT, "please make sure callsign-lookup/qrz-username qrz-password and qrz-api-key are all set in config.json and try again!");
+      log_send(mainlog, LOG_CRIT, "please make sure callsign-lookup.qrz-username qrz-password and qrz-api-key are all set in config.json and try again!");
       return NULL;
    }
 

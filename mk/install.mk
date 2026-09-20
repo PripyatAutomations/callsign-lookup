@@ -1,4 +1,4 @@
-install: bin/callsign-lookup
+install: ${CALLSIGN_BIN_DIR}/callsign-lookup
 	for i in ${real_bins}; do \
 		install -m 0755 $$i ${PREFIX}/bin/; \
 	done

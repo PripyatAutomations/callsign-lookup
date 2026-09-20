@@ -16,6 +16,7 @@
 #define	MAX_EMAIL		129
 #define	MAX_URL			257
 #include <librustyaxe/core.h>
+#include <callsign-compat.h>
 #ifdef __cplusplus
 extern "C" {
 #endif

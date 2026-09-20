@@ -9,8 +9,8 @@ POSTGRESQL=n
 #lib_install_path := ${PREFIX}/lib
 
 # required libraries: -l${x} will be expanded later...
-common_libs += yajl ev
-callsign_lookup_libs += m curl ied termbox2
+common_libs += ev sqlite3
+callsign_lookup_libs += m curl
 
 # If building DEBUG release
 ifeq (${DEBUG},y)
@@ -28,7 +28,7 @@ C_STD := -std=gnu11
 CXX_STD := -std=gnu++17
 CFLAGS += ${C_STD} -I./ -I../ -I./ext/ -I./include/ -I./ext/ft8_lib/ -fPIC
 CXXFLAGS := ${CXX_STD} $(filter-out ${C_STD},${CFLAGS})
-LDFLAGS += ${SAN_LDFLAGS} -L./libied/ -L./libied/termbox2/
+LDFLAGS += ${SAN_LDFLAGS} -L.. -lrustyaxe -Wl,-rpath,'$$ORIGIN/..'
 LDFLAGS += $(foreach x,${common_libs},-l${x})
 
 ifeq (${POSTGRESQL},y)
