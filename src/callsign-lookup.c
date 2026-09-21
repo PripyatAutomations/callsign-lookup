@@ -475,7 +475,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
    return cd;
 }
 
-calldata_t *callsign_lookup(const char *callsign) {
+calldata_t *callsign_lookup(const char *callsign, bool no_cache) {
    bool from_cache = false;
    bool res = false;
    calldata_t *qr = NULL;
@@ -486,7 +486,7 @@ calldata_t *callsign_lookup(const char *callsign) {
    }
 
    // If enabled, Look in cache first
-   if (Config.use_cache && (qr = callsign_cache_find(callsign)) != NULL) {
+   if (!no_cache && Config.use_cache && (qr = callsign_cache_find(callsign)) != NULL) {
       log_send(mainlog, LOG_DEBUG, "got cached calldata for %s", callsign);
       from_cache = true;
    }
@@ -531,7 +531,7 @@ calldata_t *callsign_lookup(const char *callsign) {
    }
 
    // only save it in cache if it did not come from there already
-   if (!from_cache) {
+   if (!from_cache && !no_cache) {
       log_send(mainlog, LOG_DEBUG, "adding new item (%s) to cache", callsign);
       callsign_cache_save(qr);
    }
@@ -592,247 +592,92 @@ static void init_my_coords(void) {
 
 // dump all the set attributes of a calldata to the screen
 bool calldata_dump(calldata_t *calldata, const char *callsign) {
-   if (calldata == NULL) {
-      return false;
-   }
-
-   const char *online = (Config.offline ? "OFFLINE" : "ONLINE");
-
+   if (!calldata) return false;
+   const char *online = Config.offline ? "OFFLINE" : "ONLINE";
    if (calldata->callsign[0] == '\0') {
-      if (calldata->query_callsign[0] != '\0') {
-         fprintf(stdout, "404 NOT FOUND %s %s %lu\n", calldata->query_callsign, online, now);
-         log_send(mainlog, LOG_DEBUG, "Lookup for %s failed, not found!\n", calldata->query_callsign);
-      } else if (callsign != NULL) {
-         fprintf(stdout, "404 NOT FOUND %s %s %lu\n", callsign, online, now);
-      } else {
-         log_send(mainlog, LOG_DEBUG, "Lookup failed: query_callsign unset!");
-         fprintf(stdout, "404 NOT FOUND (unknown) %s %lu\n", online, now);
-      }
+      const char *query = calldata->query_callsign[0] ? calldata->query_callsign : callsign;
+      fprintf(stdout, "404 NOT FOUND %s %s %lu\n", query ? query : "(unknown)", online, now);
       return false;
-   }
-
-   // 200 OK N0CALL ONLINE 1683541080 QRZ
-   // Lookup for N0CALL succesfully performed using QRZ online (not cached)
-   // at Mon May  8 06:18:00 AM EDT 2023.
-   // 200 OK N0CALL CACHE 1683541080 QRZ EXPIRES 1683800280
-   // Lookup for N0CALL was answered by the cache.
-   // The answer originally came from QRZ at Mon May  8 06:18:00 AM EDT 2023
-   // and will expire (if we go online) at Thu May 11 06:18:00 AM EDT 2023.
-   fprintf(stdout, "200 OK %s %s %lu %s\n", calldata->callsign, online, time(NULL), origin_name[calldata->origin]);
-   fprintf(stdout, "Callsign: %s\n", calldata->callsign);
-
-   fprintf(stdout, "Cached: %s\n", (calldata->cached ? "true" : "false"));
-
-   struct tm *cache_fetched_tm;
-   struct tm *cache_expiry_tm;
-
-   if (calldata->cached) {
-      char fetched[128], expiry[128];
-      struct tm *tm_fetched = NULL, *tm_expiry = NULL;
-
-      // zeroize memories
-      memset(fetched, 0, 128);
-      memset(expiry, 0, 128);
-
-      if ((tm_fetched = localtime(&calldata->cache_fetched)) == NULL) {
-         log_send(mainlog, LOG_CRIT, "localtime() failed");
-         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
-         exit(255);
-      }
-
-      if (strftime(fetched, 128, "%Y/%m/%d %H:%M:%S", tm_fetched) == 0 && errno != 0) {
-         log_send(mainlog, LOG_CRIT, "strftime() failed");
-         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
-         exit(254);
-      }
-
-      if ((tm_expiry = localtime(&calldata->cache_expiry)) == NULL) {
-         log_send(mainlog, LOG_CRIT, "localtime() failed");
-         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
-         exit(255);
-      }
-
-      if (strftime(expiry, 128, "%Y/%m/%d %H:%M:%S", tm_expiry) == 0 && errno != 0) {
-         log_send(mainlog, LOG_CRIT, "strftime() failed");
-         fprintf(stderr, "+ERROR Internal error: %d:%s.\n", errno, strerror(errno));
-         exit(254);
-      }
-
-      fprintf(stdout, "Cache-Fetched: %s\n", fetched);
-      fprintf(stdout, "Cache-Expiry: %s\n", expiry);
-   }
-
-   if (calldata->first_name[0] != '\0') {
-      fprintf(stdout, "Name: %s %s\n", calldata->first_name, calldata->last_name);
    }
 
    char *opclass = NULL;
-   if (calldata->opclass[0] != '\0') {
-      // Parse out US callsign classes to names
+   if (calldata->opclass[0]) {
       if (strcasecmp(calldata->country, "United States") == 0) {
-         switch(calldata->opclass[0]) {
-            case 'N':
-               opclass = "Novice";
-               break;
-            case 'A':
-               opclass = "Advanced";
-               break;
-            case 'T':
-               opclass = "Technician";
-               break;
-            case 'G':
-               opclass = "General";
-               break;
-            case 'E':
-               opclass = "Extra";
-               break;
-            default:
-               break;
+         switch (calldata->opclass[0]) {
+            case 'N': opclass = "Novice"; break;
+            case 'A': opclass = "Advanced"; break;
+            case 'T': opclass = "Technician"; break;
+            case 'G': opclass = "General"; break;
+            case 'E': opclass = "Extra"; break;
+            default: opclass = calldata->opclass; break;
          }
       } else {
          opclass = calldata->opclass;
       }
-
-      // is it a valid pointer with non-empty content?
-      if (opclass != NULL && opclass[0] != '\0') {
-         fprintf(stdout, "Class: %s\n", opclass);
-      }
    }
 
-   if (calldata->grid[0] != 0) {
-      fprintf(stdout, "Grid: %s\n", calldata->grid);
-   }
+   fprintf(stdout, "200 OK %s %s %lu %s\n", calldata->callsign, online,
+      time(NULL), origin_name[calldata->origin]);
+   fprintf(stdout, "Callsign: %s%s%s\n", calldata->callsign,
+      opclass ? " (" : "", opclass ? opclass : "");
+   if (opclass) fprintf(stdout, ")\n");
+   if (calldata->first_name[0]) fprintf(stdout, "Name: %s %s\n", calldata->first_name, calldata->last_name);
+   if (calldata->email[0]) fprintf(stdout, "Email: %s\n", calldata->email);
+   if (calldata->address1[0]) fprintf(stdout, "Address1: %s\n", calldata->address1);
+   if (calldata->address_attn[0]) fprintf(stdout, "Attn: %s\n", calldata->address_attn);
+   if (calldata->address2[0]) fprintf(stdout, "Address2: %s\n", calldata->address2);
+   if (calldata->county[0]) fprintf(stdout, "County: %s\n", calldata->county);
+   if (calldata->state[0]) fprintf(stdout, "State: %s\n", calldata->state);
+   if (calldata->zip[0]) fprintf(stdout, "Zip: %s\n", calldata->zip);
+   if (calldata->country[0]) fprintf(stdout, "Country: %s (%d)\n", calldata->country, calldata->country_code);
 
    if (calldata->latitude != 0 && calldata->longitude != 0) {
-      fprintf(stdout, "WGS-84: %.3f, %.3f\n", calldata->latitude, calldata->longitude);
-   }
-
-   // get distance and bearing
-   if (my_grid != NULL) {
-      if (my_coords.latitude == 0 && my_coords.longitude == 0) {
-         init_my_coords();
-      }
-
-      // did QRZ provide lat / lon?
-      if (calldata->latitude != 0 && calldata->longitude != 0) {
-         double distance = calculateDistance(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
-         double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
-
-         if (distance > 0 && bearing > 0) {
-            float heading_miles = distance * 0.6214;
-            fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
-         }
-      } else {		// nope, convert the grid
-         Coordinates call_coord = { 0, 0 };
-
-         if (calldata->grid[0] != '\0') {
-            call_coord = maidenhead2latlon(calldata->grid);
-            log_send(mainlog, LOG_DEBUG, "call grid: %s => lat/lon: %.4f, %.4f", calldata->grid, call_coord.latitude, call_coord.longitude);
-         }
-
-         if (call_coord.latitude == 0 && call_coord.longitude == 0) {
-            return false;
-         } else {
-            double distance = calculateDistance(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
-            double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, call_coord.latitude, call_coord.longitude);
-
-            if (distance > 0 && bearing > 0) {
-               float heading_miles = distance * 0.6214;
-               fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
-            }
-         }
-      }
-   }
-
-   if (calldata->alias_count > 0 && (calldata->aliases[0] != '\0')) {
-      fprintf(stdout, "Aliases: %d: %s\n", calldata->alias_count, calldata->aliases);
-   }
-
-   if (calldata->dxcc != 0) {
+      fprintf(stdout, "WGS-84: %.3f, %.3f", calldata->latitude, calldata->longitude);
+      if (calldata->grid[0]) fprintf(stdout, " ( %s )", calldata->grid);
+      if (calldata->dxcc) fprintf(stdout, "  DXCC %d", calldata->dxcc);
+      fputc('\n', stdout);
+   } else if (calldata->grid[0]) {
+      fprintf(stdout, "Grid: %s", calldata->grid);
+      if (calldata->dxcc) fprintf(stdout, "  DXCC %d", calldata->dxcc);
+      fputc('\n', stdout);
+   } else if (calldata->dxcc) {
       fprintf(stdout, "DXCC: %d\n", calldata->dxcc);
    }
 
-   if (calldata->email[0] != '\0') {
-      fprintf(stdout, "Email: %s\n", calldata->email);
+   if (my_grid && calldata->latitude != 0 && calldata->longitude != 0) {
+      if (my_coords.latitude == 0 && my_coords.longitude == 0) init_my_coords();
+      double distance = calculateDistance(my_coords.latitude, my_coords.longitude,
+         calldata->latitude, calldata->longitude);
+      double bearing = calculateBearing(my_coords.latitude, my_coords.longitude,
+         calldata->latitude, calldata->longitude);
+      if (distance > 0 && bearing > 0)
+         fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n",
+            distance * 0.6214, distance, bearing);
    }
 
-   if (calldata->address1[0] != '\0') {
-      fprintf(stdout, "Address1: %s\n", calldata->address1);
-   }
-
-   if (calldata->address_attn[0] != '\0') {
-      fprintf(stdout, "Attn: %s\n", calldata->address_attn);
-   }
-
-   if (calldata->address2[0] != '\0') {
-      fprintf(stdout, "Address2: %s\n", calldata->address2);
-   }
-
-   if (calldata->state[0] != '\0') {
-      fprintf(stdout, "State: %s\n", calldata->state);
-   }
-
-   if (calldata->zip[0] != '\0') {
-      fprintf(stdout, "Zip: %s\n", calldata->zip);
-   }
-
-   if (calldata->county[0] != '\0') {
-      fprintf(stdout, "County: %s\n", calldata->county);
-   }
-
-   if (calldata->fips[0] != '\0') {
-      fprintf(stdout, "FIPS: %s\n", calldata->fips);
-   }
-
-   if (calldata->license_effective > 0) {
-      struct tm *eff_tm = localtime(&calldata->license_effective);
-
-      if (eff_tm == NULL) {
-         log_send(mainlog, LOG_DEBUG, "calldata_dump: failed converting license_effective to tm");
-      } else {
-         char eff_buf[129];
-         memset(eff_buf, 0, 129);
-
-         size_t eff_ret = -1;
-         if ((eff_ret = strftime(eff_buf, 128, "%Y/%m/%d", eff_tm)) == 0) {
-            if (errno != 0) {
-               log_send(mainlog, LOG_DEBUG, "calldata_dump: strfime license effective failed: %d: %s", errno, strerror(errno));
-            }
-         } else {
-            fprintf(stdout, "License Effective: %s\n", eff_buf);
-         }
+   if (calldata->license_effective > 0 || calldata->license_expiry > 0) {
+      char effective[32] = "UNKNOWN", expiry[32] = "UNKNOWN";
+      if (calldata->license_effective > 0) {
+         struct tm *tm = localtime(&calldata->license_effective);
+         if (tm) strftime(effective, sizeof(effective), "%Y/%m/%d", tm);
       }
-   } else {
-      fprintf(stdout, "License Effective: UNKNOWN\n");
-   }
-
-   if (calldata->license_expiry > 0) {
-      struct tm *exp_tm = localtime(&calldata->license_expiry);
-
-      if (exp_tm == NULL) {
-         log_send(mainlog, LOG_DEBUG, "calldata_dump: failed converting license_expiry to tm");
-      } else {
-         char exp_buf[129];
-         memset(exp_buf, 0, 129);
-
-         size_t ret = -1;
-         if ((ret = strftime(exp_buf, 128, "%Y/%m/%d", exp_tm)) == 0) {
-            if (errno != 0) {
-               log_send(mainlog, LOG_DEBUG, "calldata_dump: strfime license expiry failed: %d: %s", errno, strerror(errno));
-            }
-         } else {
-            fprintf(stdout, "License Expires: %s\n", exp_buf);
-         }
+      if (calldata->license_expiry > 0) {
+         struct tm *tm = localtime(&calldata->license_expiry);
+         if (tm) strftime(expiry, sizeof(expiry), "%Y/%m/%d", tm);
       }
-   } else {
-      fprintf(stdout, "License Expires: UNKNOWN\n");
+      fprintf(stdout, "License Effective: %s, Expires: %s\n", effective, expiry);
    }
 
-   if (calldata->country[0] != '\0') {
-      fprintf(stdout, "Country: %s (%d)\n", calldata->country, calldata->country_code);
+   fprintf(stdout, "Cached: %s\n", calldata->cached ? "true" : "false");
+   if (calldata->cached) {
+      char fetched[32] = "UNKNOWN", expiry[32] = "UNKNOWN";
+      struct tm *tm = localtime(&calldata->cache_fetched);
+      if (tm) strftime(fetched, sizeof(fetched), "%Y/%m/%d %H:%M:%S", tm);
+      tm = localtime(&calldata->cache_expiry);
+      if (tm) strftime(expiry, sizeof(expiry), "%Y/%m/%d %H:%M:%S", tm);
+      fprintf(stdout, "Cache-Fetched: %s\n", fetched);
+      fprintf(stdout, "Cache-Expiry: %s\n", expiry);
    }
-
-   // end of record marker, optional, don't rely on it's presence!
    fprintf(stdout, "+EOR\n\n");
    return true;
 }
@@ -870,18 +715,32 @@ static bool parse_request(const char *line) {
       fprintf(stdout, "+OFFLINE\n\n");
    } else if (strncasecmp(line, "/CALL", 5) == 0) {
       const char *callsign = line + 6;
+      while (*callsign == ' ' || *callsign == '\t') callsign++;
+      char query[128];
+      snprintf(query, sizeof(query), "%s", callsign);
+      bool no_cache = false;
+      char *extra = strpbrk(query, " \t");
+      if (extra) {
+         *extra++ = '\0';
+         while (*extra == ' ' || *extra == '\t') extra++;
+         if (strcasecmp(extra, "NOCACHE") == 0) no_cache = true;
+         else {
+            fprintf(stdout, "400 Bad Request - invalid /CALL option\n+EOR\n\n");
+            return false;
+         }
+      }
 
-      calldata_t *calldata = callsign_lookup(callsign);
+      calldata_t *calldata = callsign_lookup(query, no_cache);
 
       const char *online = (Config.offline ? "OFFLINE" : "ONLINE");
 
          if (calldata == NULL) {
-            fprintf(stdout, "404 NOT FOUND %s %s %lu\n", callsign, online, now);
-            log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", callsign);
+            fprintf(stdout, "404 NOT FOUND %s %s %lu\n", query, online, now);
+            log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", query);
             fprintf(stdout, "+EOR\n\n");
          } else {
          // Send the result
-         calldata_dump(calldata, callsign);
+         calldata_dump(calldata, query);
          free(calldata);
          calldata = NULL;
       }
@@ -1053,6 +912,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
        free(input);
        log_send(mainlog, LOG_CRIT, "got ^D (EOF), exiting!");
        fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
+       fflush(stdout);
       sql_fini();
        return;
     }
@@ -1070,10 +930,11 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
     }
 
     // If buffer is full and no newline is found, consider it an incomplete line
-    if (input->length == BUFFER_SIZE) {
+   if (input->length == BUFFER_SIZE) {
        fprintf(stdout, "+ERROR Input buffer full, discarding incomplete line: %s\n", input->buffer);
+       fflush(stdout);
        input->length = 0;  // Discard the incomplete line
-    }
+   }
 }
 
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
@@ -1094,6 +955,7 @@ int main(int argc, char **argv) {
    bool res = false;
    InputBuffer *input = NULL;
    const char *grid_query = NULL;
+   bool no_cache = false;
 
 #if	defined(DEBUG)
    // setup logging for address sanitizers early
@@ -1105,7 +967,7 @@ int main(int argc, char **argv) {
    now = time(NULL);
 
    int opt;
-   while ((opt = getopt(argc, argv, "f:g:qh")) != -1) {
+   while ((opt = getopt(argc, argv, "f:g:qnh")) != -1) {
       switch (opt) {
       case 'f':
          config_file = optarg;
@@ -1116,9 +978,12 @@ int main(int argc, char **argv) {
       case 'g':
          grid_query = optarg;
          break;
+      case 'n':
+         no_cache = true;
+         break;
       case 'h':
       default:
-         fprintf(stderr, "Usage: %s [-q] -f parent-config.ini [CALLSIGN ...] | -g GRID|COORD\n", argv[0]);
+         fprintf(stderr, "Usage: %s [-q] [-n] -f parent-config.ini [CALLSIGN ...] | -g GRID|COORD\n", argv[0]);
          return 1;
       }
    }
@@ -1194,7 +1059,7 @@ int main(int argc, char **argv) {
          calldata_t *calldata = NULL;
 
          if (argv[i] != NULL) {
-            calldata = callsign_lookup(callsign);
+            calldata = callsign_lookup(callsign, no_cache);
          } else {
             break;
          }
