@@ -1185,7 +1185,7 @@ int main(int argc, char **argv) {
       parse_request(request);
       fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
       dying = true;
-   } else if (argc > 1) {
+   } else if (optind < argc) {
       for (int i = optind; i < argc; i++) {
          char *callsign = argv[i];
          calldata_t *calldata = NULL;
