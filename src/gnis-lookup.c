@@ -15,13 +15,14 @@
 bool gnis_initialized = false;
 bool use_gnis = false;
 static const char *gnis_db = NULL;
+static char *gnis_db_owned = NULL;
 
 int gnis_init(void) {
    use_gnis = cfg_get_bool("gnis-lookup.use-gnis", false);
 
-   const char *s = cfg_get("gnis-lookup.gnis-db");
-   if (s != NULL) {
-      gnis_db = s;
+   gnis_db_owned = cfg_get_path("gnis-lookup.gnis-db");
+   if (gnis_db_owned != NULL) {
+      gnis_db = gnis_db_owned;
    }
 
    gnis_initialized = true;

@@ -43,6 +43,7 @@ struct Config Config = {
 
 // globals.. yuck ;)
 static const char *callsign_cache_db = NULL;
+static char *callsign_cache_db_owned = NULL;
 static bool callsign_keep_stale_offline = false, qrz_active = false;
 bool callsign_quiet = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
@@ -87,6 +88,10 @@ static void sql_fini(void) {
       sql_close(calldata_uls);
       calldata_uls = NULL;
    }
+
+   free(callsign_cache_db_owned);
+   callsign_cache_db_owned = NULL;
+   callsign_cache_db = NULL;
 
    exit(0);
 }
@@ -141,12 +146,12 @@ static void callsign_lookup_setup(void) {
 
    if (Config.use_cache) {
       // is cache database configured?
-      s = cfg_get("callsign-lookup:cache-db");
-      if (s == NULL) {
+      callsign_cache_db_owned = cfg_get_path("callsign-lookup:cache-db");
+      if (callsign_cache_db_owned == NULL) {
          callsign_cache_db = "./db/callsigns.db";
          log_send(mainlog, LOG_NOTICE, "callsign_lookup_setup: cache-db not set; using %s", callsign_cache_db);
       } else {
-         callsign_cache_db = s;
+         callsign_cache_db = callsign_cache_db_owned;
       }
       const char *expiry = cfg_get("callsign-lookup:cache-expiry");
       Config.cache_default_expiry = expiry ? timestr2time_t(expiry) : 86400 * 3;

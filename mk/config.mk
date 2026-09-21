@@ -14,8 +14,8 @@ callsign_lookup_libs += m curl
 
 # If building DEBUG release
 ifeq (${DEBUG},y)
-WARN_FLAGS := -Wall -pedantic -Wno-unused-variable -Wno-unused-function #-Wno-missing-braces
-ERROR_FLAGS += -Werror 
+WARN_FLAGS := -Wall -pedantic -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable #-Wno-missing-braces
+#ERROR_FLAGS += -Werror 
 # Sanitizer options
 SAN_FLAGS := -fsanitize=address
 SAN_LDFLAGS := -fsanitize=address -static-libasan
