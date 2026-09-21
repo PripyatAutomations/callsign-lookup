@@ -1174,6 +1174,9 @@ int main(int argc, char **argv) {
          (Config.use_qrz ? "On" : "Off"), (Config.offline ? " (offline)" : ""),
          (Config.use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
          (Config.use_cache ? "On" : "Off"));
+   // The helper is normally connected to a pipe.  Do not leave the ready
+   // banner buffered while the parent waits for it before sending a request.
+   fflush(stdout);
 
    // run expires at startup (useful for non-daemon users)
    run_sql_expire();
