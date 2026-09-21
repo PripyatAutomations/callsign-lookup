@@ -34,7 +34,9 @@ static inline void sql_close(Database *db) {
 #define LOG_WARNING LOG_WARN
 #define LOG_NOTICE LOG_INFO
 #define mainlog NULL
-#define log_send(_log, priority, fmt, ...) Log(priority, "callsign", fmt, ##__VA_ARGS__)
+extern bool callsign_quiet;
+#define log_send(_log, priority, fmt, ...) \
+   do { if (!callsign_quiet || (priority) <= LOG_WARN) Log(priority, "callsign", fmt, ##__VA_ARGS__); } while (0)
 
 static inline time_t callsign_timestr2time_t(const char *s) {
    if (!s || !*s) return 0;

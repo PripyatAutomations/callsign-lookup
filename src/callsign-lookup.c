@@ -44,6 +44,7 @@ struct Config Config = {
 // globals.. yuck ;)
 static const char *callsign_cache_db = NULL;
 static bool callsign_keep_stale_offline = false, qrz_active = false;
+bool callsign_quiet = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static const char *my_grid = NULL;
@@ -94,13 +95,17 @@ char expiry_sql[256];
 void run_sql_expire(void) {
    int rc = 0;
 
+   if (!calldata_cache || !calldata_cache->hndl.sqlite3) {
+      return;
+   }
+
    if (cache_expire_stmt == NULL) {
       memset(expiry_sql, 0, 256);
       snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
       rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
 
       if (rc != SQLITE_OK) {
-         sqlite3_reset(cache_expire_stmt);
+         cache_expire_stmt = NULL;
          log_send(mainlog, LOG_WARNING, "Error preparing statement for cache expiry: %s\n", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
       }
    } else {
@@ -111,61 +116,70 @@ void run_sql_expire(void) {
    log_send(mainlog, LOG_DEBUG, "cache expiry done: %d changes!", changes);
 }
 
-// Load the callsign-lookup.* configuration keys from the parent config.
+// Load the callsign-lookup:* configuration keys from the parent config.
 static void callsign_lookup_setup(void) {
    Config.initialized = true;
 
    // Use local ULS database?
-   const char *s = cfg_get("callsign-lookup.use-uls");
-   Config.use_uls = cfg_get_bool("callsign-lookup.use-uls", false);
+   const char *s = cfg_get("callsign-lookup:use-uls");
+   Config.use_uls = cfg_get_bool("callsign-lookup:use-uls", false);
 
    // use QRZ XML API?
-   s = cfg_get("callsign-lookup.use-qrz");
+   s = cfg_get("callsign-lookup:use-qrz");
 
-   Config.use_qrz = cfg_get_bool("callsign-lookup.use-qrz", false);
+   Config.use_qrz = cfg_get_bool("callsign-lookup:use-qrz", false);
 
    // use QRZ XML API?
-   s = cfg_get("callsign-lookup.use-qrz");
+   s = cfg_get("callsign-lookup:use-qrz");
 
-   Config.use_qrz = cfg_get_bool("callsign-lookup.use-qrz", Config.use_qrz);
+   Config.use_qrz = cfg_get_bool("callsign-lookup:use-qrz", Config.use_qrz);
 
    // Use local cache db?
-   s = cfg_get("callsign-lookup.use-cache");
+   s = cfg_get("callsign-lookup:use-cache");
 
-   Config.use_cache = cfg_get_bool("callsign-lookup.use-cache", true);
+   Config.use_cache = cfg_get_bool("callsign-lookup:use-cache", true);
 
    if (Config.use_cache) {
       // is cache database configured?
-      s = cfg_get("callsign-lookup.cache-db");
+      s = cfg_get("callsign-lookup:cache-db");
       if (s == NULL) {
-         log_send(mainlog, LOG_CRIT, "callsign_lookup_setup: Failed to find cache-db in config! Disabling cache...");
+         callsign_cache_db = "./db/callsigns.db";
+         log_send(mainlog, LOG_NOTICE, "callsign_lookup_setup: cache-db not set; using %s", callsign_cache_db);
       } else {
          callsign_cache_db = s;
-         Config.cache_default_expiry = timestr2time_t(cfg_get("callsign-lookup.cache-expiry"));
-         log_send(mainlog, LOG_DEBUG, "setting default callsign cache expiry to %lu seconds (from config)", Config.cache_default_expiry);
-
-         // minimum 1 hour cache lifetime
-         if (Config.cache_default_expiry < 3600) {
-            log_send(mainlog, LOG_WARNING, "callsign-lookup.cache-expiry %lu is too low, defaulting to 1 hour. If you wish to disable caching, set callsign-lookup.use-cache to false instead.", Config.cache_default_expiry);
-            Config.cache_default_expiry = 3600;
-         }
-         callsign_keep_stale_offline = cfg_get_bool("callsign-lookup.cache-keep-stale-if-offline", true);
-
-         if ((calldata_cache = sql_open(callsign_cache_db)) == NULL) {
-            log_send(mainlog, LOG_CRIT, "callsign_lookup_setup: failed opening cache %s! Disabling caching!", callsign_cache_db);
-            Config.use_cache = false;
+      }
+      const char *expiry = cfg_get("callsign-lookup:cache-expiry");
+      Config.cache_default_expiry = expiry ? timestr2time_t(expiry) : 86400 * 3;
+      if (Config.cache_default_expiry == 0) Config.cache_default_expiry = 86400 * 3;
+      callsign_keep_stale_offline = cfg_get_bool("callsign-lookup:cache-keep-stale-if-offline", true);
+      if ((calldata_cache = sql_open(callsign_cache_db)) == NULL) {
+         log_send(mainlog, LOG_CRIT, "callsign_lookup_setup: failed opening cache %s! Disabling caching!", callsign_cache_db);
+         Config.use_cache = false;
+         calldata_cache = NULL;
+      } else {
+         const char *schema =
+            "CREATE TABLE IF NOT EXISTS cache ("
+            "cache_id INTEGER PRIMARY KEY AUTOINCREMENT, callsign VARCHAR(24) UNIQUE,"
+            "dxcc TEXT, aliases TEXT, first_name TEXT, last_name TEXT, addr1 TEXT, addr2 TEXT,"
+            "state TEXT, zip TEXT, grid TEXT, country TEXT, latitude FLOAT, longitude FLOAT,"
+            "county TEXT, class TEXT, codes TEXT, email TEXT, u_views INT, effective DATE,"
+            "expires DATE, cache_expires TIMESTAMP, cache_fetched TIMESTAMP);";
+         char *schema_error = NULL;
+         if (sqlite3_exec(calldata_cache->hndl.sqlite3, schema, NULL, NULL, &schema_error) != SQLITE_OK) {
+            log_send(mainlog, LOG_CRIT, "failed initializing cache schema: %s", schema_error ? schema_error : "unknown error");
+            sqlite3_free(schema_error);
+            sql_close(calldata_cache);
             calldata_cache = NULL;
-         } else {
-            // cache database was succesfully opened
-            // XXX: Detect if we need to initialize it -- does table cache exist?
-            // XXX: Initialize the tables using sql in sql/cache.sql
+            Config.use_cache = false;
+         }
+         if (calldata_cache) {
             log_send(mainlog, LOG_INFO, "calldata cache database opened");
          }
       }
    }
 
    // after X requests, should we exit with 0 status and restart?
-   callsign_max_requests = cfg_get_int("callsign-lookup.respawn-after-requests", 0);
+   callsign_max_requests = cfg_get_int("callsign-lookup:respawn-after-requests", 0);
 
    // if invalid value, disable this feature
    if (callsign_max_requests < 0) {
@@ -542,19 +556,19 @@ static void exit_fix_config(void) {
 static const char *origin_name[5] = { "NONE", "ULS", "QRZ", "CACHE", NULL };
 
 static void init_my_coords(void) {
-   const char *coords = cfg_get("site.coordinates");
-   my_grid = cfg_get("site.gridsquare");
+   const char *coords = cfg_get("site:coordinates");
+   my_grid = cfg_get("site:gridsquare");
 
    if (coords != NULL) {
       const char *comma = strchr(coords, ',');
 
       if (comma == NULL) {
-         log_send(mainlog, LOG_CRIT, "cfg:site.coordinates is invalid (missing comma)!");
+         log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (missing comma)!");
       } else {
          comma++;	// skip the comma
 
          if (comma == NULL) {		// this is an error
-            log_send(mainlog, LOG_CRIT, "cfg:site.coordinates is invalid (no value after comma)!");
+            log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (no value after comma)!");
          } else  if (*comma == ' ') {	// trim leading white space
              while (*comma == ' ') {
                 comma++;
@@ -565,10 +579,10 @@ static void init_my_coords(void) {
          my_coords.latitude = lat;
          my_coords.longitude = lon;
       }
-   } else {	// site.coordinates overrides calculation from site.gridsquare, unless it isn't set...
+   } else if (my_grid && *my_grid) {	// coordinates override the grid square when set
       my_coords = maidenhead2latlon(my_grid);
    }
-   log_send(mainlog, LOG_DEBUG, "configured mygrid: %s, lat: %f, lon: %f", my_grid, my_coords.latitude, my_coords.longitude);
+   log_send(mainlog, LOG_DEBUG, "configured mygrid: %s, lat: %f, lon: %f", my_grid ? my_grid : "(unset)", my_coords.latitude, my_coords.longitude);
 }
 
 // dump all the set attributes of a calldata to the screen
@@ -856,10 +870,11 @@ static bool parse_request(const char *line) {
 
       const char *online = (Config.offline ? "OFFLINE" : "ONLINE");
 
-      if (calldata == NULL) {
-         fprintf(stdout, "404 NOT FOUND %s %s %lu\n", callsign, online, now);
-         log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", callsign);
-      } else {
+         if (calldata == NULL) {
+            fprintf(stdout, "404 NOT FOUND %s %s %lu\n", callsign, online, now);
+            log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", callsign);
+            fprintf(stdout, "+EOR\n\n");
+         } else {
          // Send the result
          calldata_dump(calldata, callsign);
          free(calldata);
@@ -950,7 +965,7 @@ static bool parse_request(const char *line) {
            }
 
            if (comma == NULL) {		// this is an error
-              log_send(mainlog, LOG_CRIT, "cfg:site.coordinates is invalid (no value after comma)!");
+              log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (no value after comma)!");
               return false;
            } else  if (*comma == ' ') {	// trim leading white space on longitude
               while (*comma == ' ') {
@@ -1044,6 +1059,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
     while ((newline = strchr(input->buffer, '\n')) != NULL) {
        *newline = '\0';  // Replace newline character with null terminator
        parse_request(input->buffer);
+       fflush(stdout);
        memmove(input->buffer, newline + 1, input->length - (newline - input->buffer));
        input->length -= (newline - input->buffer) + 1;
     }
@@ -1065,11 +1081,14 @@ static void periodic_cb(EV_P_ ev_timer *w, int revents) {
 }
 
 int main(int argc, char **argv) {
+   /* The server keeps this helper alive and reads one response at a time. */
+   setvbuf(stdout, NULL, _IOLBF, 0);
    struct ev_loop *loop = EV_DEFAULT;
    struct ev_io stdin_watcher;
    struct ev_timer periodic_watcher;
    bool res = false;
    InputBuffer *input = NULL;
+   const char *grid_query = NULL;
 
 #if	defined(DEBUG)
    // setup logging for address sanitizers early
@@ -1081,14 +1100,20 @@ int main(int argc, char **argv) {
    now = time(NULL);
 
    int opt;
-   while ((opt = getopt(argc, argv, "f:h")) != -1) {
+   while ((opt = getopt(argc, argv, "f:g:qh")) != -1) {
       switch (opt) {
       case 'f':
          config_file = optarg;
          break;
+      case 'q':
+         callsign_quiet = true;
+         break;
+      case 'g':
+         grid_query = optarg;
+         break;
       case 'h':
       default:
-         fprintf(stderr, "Usage: %s -f parent-config.ini\n", argv[0]);
+         fprintf(stderr, "Usage: %s [-q] -f parent-config.ini [CALLSIGN ...] | -g GRID|COORD\n", argv[0]);
          return 1;
       }
    }
@@ -1109,7 +1134,7 @@ int main(int argc, char **argv) {
    logger_init("-", false);
    log_send(mainlog, LOG_NOTICE, "%s/%s starting up!", progname, VERSION);
    // how often should we retry going online?
-   Config.online_mode_retry = timestr2time_t(cfg_get("callsign-lookup.retry-delay"));
+   Config.online_mode_retry = timestr2time_t(cfg_get("callsign-lookup:retry-delay"));
    if (Config.online_mode_retry < 30) { // enforce a minimum of 30 seconds between retries
       Config.online_mode_retry = 30;
    }
@@ -1149,8 +1174,14 @@ int main(int argc, char **argv) {
    run_sql_expire();
 
    // if called with callsign(s) as args, look them up, return the parsed output and exit
-   if (argc > 1) {
-      for (int i = 1; i <= (argc - 1); i++) {
+   if (grid_query) {
+      char request[256];
+      snprintf(request, sizeof(request), "/GRID %s", grid_query);
+      parse_request(request);
+      fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
+      dying = true;
+   } else if (argc > 1) {
+      for (int i = optind; i < argc; i++) {
          char *callsign = argv[i];
          calldata_t *calldata = NULL;
 

@@ -183,14 +183,15 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
    ////////////
    // XXX: Check and make sure this is wrapped in <QRZDatabase>
+   // QRZ has returned both mixed-case and lower-case tag names over time.
    char *callsign = strstr(buf, "<Callsign>");
    if (callsign != NULL) { 			// we got a valid callsign reply
       callsign += 10;
       char *callsign_end = strstr(callsign, "</Callsign>");
-      size_t callsign_len = (callsign_end - callsign);
+      size_t callsign_len = callsign_end ? (size_t)(callsign_end - callsign) : 0;
 
       // XXX: it should be a good bit larger if valid.. figure out minimal valid size..
-      if (callsign_len >= 10) {
+      if (callsign_len > 0) {
          char new_calldata[callsign_len + 1];
          memset(new_calldata, 0, callsign_len + 1);
          snprintf(new_calldata, callsign_len, "%s", callsign);
@@ -205,7 +206,15 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             call += 6;
             char *call_end = strstr(call, "</call>");
             size_t call_len = (call_end - call);
-            memcpy(calldata->callsign, call, call_len);
+            if (call_end && call_len < sizeof(calldata->callsign)) {
+               memcpy(calldata->callsign, call, call_len);
+               calldata->callsign[call_len] = '\0';
+            }
+         }
+         // Some QRZ responses provide only the capitalized Callsign element.
+         if (calldata->callsign[0] == '\0' && callsign_len < sizeof(calldata->callsign)) {
+            memcpy(calldata->callsign, callsign, callsign_len);
+            calldata->callsign[callsign_len] = '\0';
          }
 
          char *dxcc = strstr(buf, "<dxcc>");
@@ -505,15 +514,17 @@ bool qrz_start_session(void) {
    memset(buf, 0, 4097);
    memset(outbuf, 0, 4097);
 
-   qrz_user = cfg_get("callsign-lookup.qrz-username");
-   qrz_pass = cfg_get("callsign-lookup.qrz-password");
-   qrz_api_url = cfg_get("callsign-lookup.qrz-api-url");
+   qrz_user = cfg_get("callsign-lookup:qrz-username");
+   qrz_pass = cfg_get("callsign-lookup:qrz-password");
+   qrz_api_url = cfg_get("callsign-lookup:qrz-api-url");
 
    // if any settings are missing cry and return error
    if (qrz_user == NULL || qrz_pass == NULL || qrz_api_url == NULL) {
-      log_send(mainlog, LOG_CRIT, "please make sure callsign-lookup.qrz-username qrz-password and qrz-api-key are all set in config.json and try again!");
+      log_send(mainlog, LOG_CRIT, "please make sure callsign-lookup:qrz-username qrz-password and qrz-api-key are all set in config.json and try again!");
       return NULL;
    }
+
+   log_send(mainlog, LOG_DEBUG, "QRZ credentials configured for user %s at %s", qrz_user, qrz_api_url);
 
    log_send(mainlog, LOG_DEBUG, "Trying to log into QRZ XML API...");
 
@@ -525,6 +536,12 @@ bool qrz_start_session(void) {
 //      log_send(mainlog, LOG_DEBUG, "sending %lu bytes to parser <%s>", strlen(outbuf), outbuf);
       calldata_t calldata;
       qrz_parse_http_data(outbuf, &calldata);
+
+      if (strstr(outbuf, "<Error>") != NULL) {
+         log_send(mainlog, LOG_CRIT, "QRZ login returned an error response");
+         Config.offline = true;
+         return false;
+      }
 
       // reset the failure counter...
       qrz_login_tries = 0;
@@ -566,9 +583,19 @@ calldata_t *qrz_lookup_callsign(const char *callsign) {
    snprintf(buf, sizeof(buf), "%s?s=%s;callsign=%s", qrz_api_url, qrz_session->key, callsign);
 
    memcpy(calldata->query_callsign, callsign, MAX_CALLSIGN);
+   // Preserve the normalized query even when a QRZ response omits the
+   // nested <call> element. The response parser can replace this with the
+   // canonical account callsign when it is present.
+   snprintf(calldata->callsign, sizeof(calldata->callsign), "%s", callsign);
    log_send(mainlog, LOG_INFO, "looking up callsign %s via QRZ XML API", callsign);
 
    if (http_post(buf, NULL, outbuf, sizeof(outbuf)) != false) {
+      log_send(mainlog, LOG_DEBUG, "QRZ response: %.*s", 1024, outbuf);
+      if (strstr(outbuf, "<Error>") != NULL) {
+         log_send(mainlog, LOG_CRIT, "QRZ lookup returned an error response");
+         free(calldata);
+         return NULL;
+      }
       qrz_parse_http_data(outbuf, calldata);
       if (calldata->callsign[0] == '\0') {
          log_send(mainlog, LOG_WARNING, "result for callsign %s returned, but calldata->callsign is NULL... wtf?", callsign);
