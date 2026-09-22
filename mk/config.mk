@@ -1,5 +1,5 @@
 # Are we building debug? y or n.
-DEBUG=y
+DEBUG ?= n
 PREFIX ?= /usr
 POSTGRESQL=n
 

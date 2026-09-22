@@ -618,9 +618,8 @@ bool calldata_dump(calldata_t *calldata, const char *callsign) {
 
    fprintf(stdout, "200 OK %s %s %lu %s\n", calldata->callsign, online,
       time(NULL), origin_name[calldata->origin]);
-   fprintf(stdout, "Callsign: %s%s%s\n", calldata->callsign,
-      opclass ? " (" : "", opclass ? opclass : "");
-   if (opclass) fprintf(stdout, ")\n");
+   fprintf(stdout, "Callsign: %s%s%s%s\n", calldata->callsign,
+      opclass ? " (" : "", opclass ? opclass : "", opclass ? ")" : "");
    if (calldata->first_name[0]) fprintf(stdout, "Name: %s %s\n", calldata->first_name, calldata->last_name);
    if (calldata->email[0]) fprintf(stdout, "Email: %s\n", calldata->email);
    if (calldata->address1[0]) fprintf(stdout, "Address1: %s\n", calldata->address1);
