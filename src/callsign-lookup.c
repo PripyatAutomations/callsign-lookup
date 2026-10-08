@@ -220,7 +220,7 @@ bool callsign_cache_save(calldata_t *cp) {
 
    // initialize or reset prepared statement as needed
    if (cache_insert_stmt == NULL) {
-      const char *sql = "INSERT INTO cache "
+      const char *sql = "INSERT OR REPLACE INTO cache "
          "(callsign, dxcc, aliases, first_name, last_name, addr1, addr2,"
          "state, zip, grid, country, latitude, longitude, county, class,"
          "codes, email, u_views, effective, expires, cache_expires,"
