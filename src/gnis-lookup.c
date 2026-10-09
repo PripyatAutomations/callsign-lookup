@@ -21,6 +21,7 @@ int gnis_init(void) {
    use_gnis = cfg_get_bool("gnis-lookup.use-gnis", false);
 
    gnis_db_owned = cfg_get_path("gnis-lookup.gnis-db");
+
    if (gnis_db_owned != NULL) {
       gnis_db = gnis_db_owned;
    }

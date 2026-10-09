@@ -3,13 +3,11 @@
  *
  * This is only useful for paid QRZ members.
  *
- * We cache results into cfg:callsign-lookup.cache-db for cfg:callsign-lookup.cache-expiry
- * (in etc/callsign-cache.db for 3 days by default)
+ * We cache results into cfg:callsign-lookup.cache-db for cfg:callsign-lookup.cache-expiry (in etc/callsign-cache.db for 3 days by default)
  *
- * Reference: https://www.qrz.com/XML/current_spec.html
- * Current Version: 1.34
+ * Reference: https://www.qrz.com/XML/current_spec.html Current Version: 1.34
  */
-#define	_XOPEN_SOURCE
+#define _XOPEN_SOURCE
 #include <curl/curl.h>
 #include <sys/param.h>
 #include <string.h>
@@ -17,7 +15,7 @@
 #include "ft8goblin_types.h"
 #include "qrz-xml.h"
 
-extern struct Config Config;	// in callsign-lookup.c
+extern struct Config Config;    // in callsign-lookup.c
 extern char *progname;
 static const char *qrz_user = NULL, *qrz_pass = NULL, *qrz_api_key = NULL, *qrz_api_url;
 static qrz_session_t *qrz_session = NULL;
@@ -29,15 +27,15 @@ static int qrz_login_tries = 0, qrz_max_login_tries = 3;
 static time_t qrz_last_login_try = -1;
 
 static void qrz_init_string(qrz_string_t *s) {
-  s->len = 0;
-  s->ptr = malloc(s->len + 1);
+   s->len = 0;
+   s->ptr = malloc(s->len + 1);
 
-  if (s->ptr == NULL) {
-    fprintf(stderr, "qrz_init_string: out of memory!\n");
-    exit(ENOMEM);
-  }
+   if (s->ptr == NULL) {
+      fprintf(stderr, "qrz_init_string: out of memory!\n");
+      exit(ENOMEM);
+   }
 
-  s->ptr[0] = '\0';
+   s->ptr[0] = '\0';
 }
 
 bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
@@ -50,6 +48,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
    if (calldata == NULL) {
       log_send(mainlog, LOG_DEBUG, "qrz_parse_http_data called witn NULL calldata.");
+
       return false;
    }
 
@@ -70,6 +69,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
    // this is ugly...
    key = strstr(buf, "<Key>");
+
    if (key != NULL) {
       // skip opening tag...
       key += 5;
@@ -82,7 +82,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          char newkey[key_len + 1];
          memset(newkey, 0, key_len + 1);
          snprintf(newkey, key_len + 1, "%s", key);
-            
+
 //         log_send(mainlog, LOG_DEBUG, "qrz_xml_api: Got session key: %s, key_len: %lu", newkey, key_len);
          // We need to deal with the case of QRZ returning a new key when one expires during a lookup, however...
          // In theory, this will be slightly less CPU cycles in the frequent case the key is unchanged.
@@ -91,7 +91,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             snprintf(q->key, 33, "%s", newkey);
          }
       }
-   }	// key != NULL
+   }    // key != NULL
 
    char *sub_exp = strstr(buf, "<SubExp>");
    char *new_sub_exp = NULL;
@@ -107,7 +107,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          char new_sub_exp[sub_exp_len + 1];
          memset(new_sub_exp, 0, sub_exp_len + 1);
          snprintf(new_sub_exp, sub_exp_len + 1, "%s", sub_exp);
-            
+
 //         log_send(mainlog, LOG_DEBUG, "qrz_xml_api: Got SubExp: %s, len: %lu", new_sub_exp, sub_exp_len);
 
          struct tm tm;
@@ -118,7 +118,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
          qrz_session->sub_expiration = myret;
       }
-   }	// sub_exp != NULL
+   }    // sub_exp != NULL
    char *countp = strstr(buf, "<Count>");
    uint64_t new_count = 0;
 
@@ -136,6 +136,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
          int n = -1;
          n = atoi(buf);
+
          if (n == 0 && errno != 0) {
             // an error happened
             log_send(mainlog, LOG_CRIT, "qrz_xml_api: Got invalid response from atoi: %d: %s", errno, strerror(errno));
@@ -144,7 +145,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 //            log_send(mainlog, LOG_DEBUG, "qrz_xml_api: Got Count: %d", q->count);
          }
       }
-   }	// count != NULL
+   }    // count != NULL
 
    // is the session started?
    if (q->sub_expiration > 0 && q->key[0] != '\0' && q->count >= -1) {
@@ -164,17 +165,24 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
       // warn the user about upcoming QRZ subscription expiration starting at 90 days...
       if (!already_logged_in) {
-         if (q->sub_expiration <= now + 7776000) {		// <= 90 days
+         if (q->sub_expiration <= now + 7776000) {
+            // <= 90 days
             log_send(mainlog, LOG_NOTICE, "QRZ subscription expires within 90 days (%d days).", (now - q->sub_expiration) / 86400);
-         } else if (q->sub_expiration <= now + 5184000) {	// <= 60 days
-            log_send(mainlog, LOG_NOTICE, "QRZ subscription expires within 60 days (%d days), you should consider renewing soon...", (now - q->sub_expiration) / 86400);
-         } else if (q->sub_expiration <= now + 2592000) {	// <= 30 days
+         } else if (q->sub_expiration <= now + 5184000) {
+            // <= 60 days
+            log_send(mainlog, LOG_NOTICE, "QRZ subscription expires within 60 days (%d days), you should consider renewing "
+               "soon...", (now - q->sub_expiration) / 86400);
+         } else if (q->sub_expiration <= now + 2592000) {
+            // <= 30 days
             // XXX: this should pop up a dialog once per session to alert the user
-            log_send(mainlog, LOG_CRIT, "QRZ subscription expires within 30 days (%d days), you really should renew soon...", (now - q->sub_expiration) / 86400);
-         } else if (q->sub_expiration <= now + 604800) {	// <= 7 days
+            log_send(mainlog, LOG_CRIT, "QRZ subscription expires within 30 days (%d days), you really should renew "
+               "soon...", (now - q->sub_expiration) / 86400);
+         } else if (q->sub_expiration <= now + 604800) {
+            // <= 7 days
             // XXX: this should pop up a dialog once per session to alert the user
             log_send(mainlog, LOG_CRIT, "QRZ subscription expires within 7 days (%d days), you really should renew soon...", (now - q->sub_expiration) / 86400);
-         } else {	// not expiring in the next 90 days
+         } else {
+            // not expiring in the next 90 days
             log_send(mainlog, LOG_INFO, "Logged into QRZ. Your subscription expires %s. You've used %d queries.", datebuf, q->count);
             already_logged_in = true;
          }
@@ -185,7 +193,9 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
    // XXX: Check and make sure this is wrapped in <QRZDatabase>
    // QRZ has returned both mixed-case and lower-case tag names over time.
    char *callsign = strstr(buf, "<Callsign>");
-   if (callsign != NULL) { 			// we got a valid callsign reply
+
+   if (callsign != NULL) {
+      // we got a valid callsign reply
       callsign += 10;
       char *callsign_end = strstr(callsign, "</Callsign>");
       size_t callsign_len = callsign_end ? (size_t)(callsign_end - callsign) : 0;
@@ -202,15 +212,18 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
          /* Here we need to break out the fields and apply them to their respective parts of the calldata_t */
          char *call = strstr(buf, "<call>");
+
          if (call != NULL) {
             call += 6;
             char *call_end = strstr(call, "</call>");
             size_t call_len = (call_end - call);
+
             if (call_end && call_len < sizeof(calldata->callsign)) {
                memcpy(calldata->callsign, call, call_len);
                calldata->callsign[call_len] = '\0';
             }
          }
+
          // Some QRZ responses provide only the capitalized Callsign element.
          if (calldata->callsign[0] == '\0' && callsign_len < sizeof(calldata->callsign)) {
             memcpy(calldata->callsign, callsign, callsign_len);
@@ -218,6 +231,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *dxcc = strstr(buf, "<dxcc>");
+
          if (dxcc != NULL) {
             dxcc += 6;
             char *dxcc_end = strstr(dxcc, "</dxcc>");
@@ -228,6 +242,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *aliases = strstr(buf, "<aliases>");
+
          if (aliases != NULL) {
             aliases += 9;
             char *aliases_end = strstr(aliases, "</aliases>");
@@ -236,6 +251,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *fname = strstr(buf, "<fname>");
+
          if (fname != NULL) {
             fname += 7;
             char *fname_end = strstr(fname, "</fname>");
@@ -244,6 +260,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *name = strstr(buf, "<name>");
+
          if (name != NULL) {
             name += 6;
             char *name_end = strstr(name, "</name>");
@@ -252,6 +269,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *addr1 = strstr(buf, "<addr1>");
+
          if (addr1 != NULL) {
             addr1 += 7;
             char *addr1_end = strstr(addr1, "</addr1>");
@@ -260,6 +278,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *addr2 = strstr(buf, "<addr2>");
+
          if (addr2 != NULL) {
             addr2 += 7;
             char *addr2_end = strstr(addr2, "</addr2>");
@@ -268,6 +287,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *state = strstr(buf, "<state>");
+
          if (state != NULL) {
             state += 7;
             char *state_end = strstr(state, "</state>");
@@ -276,6 +296,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *zip = strstr(buf, "<zip>");
+
          if (zip != NULL) {
             zip += 5;
             char *zip_end = strstr(zip, "</zip>");
@@ -284,14 +305,16 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *grid = strstr(buf, "<grid>");
+
          if (grid != NULL) {
             grid += 6;
             char *grid_end = strstr(grid, "</grid>");
             size_t grid_len = (grid_end - grid);
             memcpy(calldata->grid, grid, grid_len);
          }
- 
+
          char *country = strstr(buf, "<country>");
+
          if (country != NULL) {
             country += 9;
             char *country_end = strstr(country, "</country>");
@@ -300,6 +323,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *lat = strstr(buf, "<lat>");
+
          if (lat != NULL) {
             lat += 5;
             char *lat_end = strstr(lat, "</lat>");
@@ -313,6 +337,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *lon = strstr(buf, "<lon>");
+
          if (lon != NULL) {
             lon += 5;
             char *lon_end = strstr(lon, "</lon>");
@@ -326,6 +351,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *county = strstr(buf, "<county>");
+
          if (county != NULL) {
             county += 8;
             char *county_end = strstr(county, "</county>");
@@ -334,6 +360,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *class = strstr(buf, "<class>");
+
          if (class != NULL) {
             class += 7;
             char *class_end = strstr(class, "</class>");
@@ -342,6 +369,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *codes = strstr(buf, "<codes>");
+
          if (codes != NULL) {
             codes += 7;
             char *codes_end = strstr(codes, "</codes>");
@@ -350,6 +378,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *email = strstr(buf, "<email>");
+
          if (email != NULL) {
             email += 7;
             char *email_end = strstr(email, "</email>");
@@ -357,6 +386,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             memcpy(calldata->email, email, email_len);
          }
          char *u_views = strstr(buf, "<u_views>");
+
          if (u_views != NULL) {
             u_views += 9;
             char *u_views_end = strstr(u_views, "</u_views>");
@@ -367,6 +397,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
 
          char *efdate = strstr(buf, "<efdate>");
+
          if (efdate != NULL) {
             efdate += 8;
             char *efdate_end = strstr(efdate, "</efdate>");
@@ -378,6 +409,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             memcpy(efdate_buf, efdate, efdate_len);
 
             memset(&tm, 0, sizeof(struct tm));
+
             if ((strptime(efdate_buf, "%Y-%m-%d", &tm)) == NULL) {
                log_send(mainlog, LOG_WARNING, "parsing efdate from qrz failed: %d: %s", errno, strerror(errno));
             } else {
@@ -386,6 +418,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             }
          }
          char *expdate = strstr(buf, "<expdate>");
+
          if (expdate != NULL) {
             expdate += 9;
             char *expdate_end = strstr(expdate, "</expdate>");
@@ -397,6 +430,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             memcpy(expdate_buf, expdate, expdate_len);
 
             memset(&exptm, 0, sizeof(struct tm));
+
             if ((strptime(expdate_buf, "%Y-%m-%d", &exptm)) == NULL) {
                log_send(mainlog, LOG_WARNING, "parsing expdate from qrz failed: %d: %s", errno, strerror(errno));
             } else {
@@ -408,6 +442,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          return true;
       }
    }
+
    // if we fell through to here, we were not succesful...
    return false;
 }
@@ -423,11 +458,11 @@ static size_t qrz_http_post_cb(void *ptr, size_t size, size_t nmemb, qrz_string_
       qrz_session->last_rx = time(NULL);
    }
 
-   s->ptr = realloc(s->ptr, new_len+1);
+   s->ptr = realloc(s->ptr, new_len + 1);
 
    if (s->ptr == NULL) {
-     fprintf(stderr, "qrz_http_post_cb: Out of memory!\n");
-     exit(ENOMEM);
+      fprintf(stderr, "qrz_http_post_cb: Out of memory!\n");
+      exit(ENOMEM);
    }
 
    memcpy(s->ptr + s->len, ptr, size * nmemb);
@@ -447,6 +482,7 @@ bool http_post(const char *url, const char *postdata, char *buf, size_t bufsz) {
 
    if (buf == NULL || url == NULL) {
       log_send(mainlog, LOG_DEBUG, "qrz: http_post called with out <%p>> || url <%p> NULL, this is incorrect!", buf, url);
+
       return false;
    }
 
@@ -455,6 +491,7 @@ bool http_post(const char *url, const char *postdata, char *buf, size_t bufsz) {
    // create a curl instance
    if (!(curl = curl_easy_init())) {
       log_send(mainlog, LOG_WARNING, "qrz: http_post failed on curl_easy_init()");
+
       return false;
    }
 
@@ -466,7 +503,7 @@ bool http_post(const char *url, const char *postdata, char *buf, size_t bufsz) {
    char useragent[128];
    memset(useragent, 0, 128);
    snprintf(useragent, 128, "%s/%s", progname, VERSION);
-  
+
    curl_easy_setopt(curl, CURLOPT_USERAGENT, useragent);
    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
 
@@ -521,6 +558,7 @@ bool qrz_start_session(void) {
    // if any settings are missing cry and return error
    if (qrz_user == NULL || qrz_pass == NULL || qrz_api_url == NULL) {
       log_send(mainlog, LOG_CRIT, "please make sure callsign-lookup:qrz-username qrz-password and qrz-api-key are all set in config.json and try again!");
+
       return NULL;
    }
 
@@ -540,12 +578,14 @@ bool qrz_start_session(void) {
       if (strstr(outbuf, "<Error>") != NULL) {
          log_send(mainlog, LOG_CRIT, "QRZ login returned an error response");
          Config.offline = true;
+
          return false;
       }
 
       // reset the failure counter...
       qrz_login_tries = 0;
       Config.offline = false;
+
       return true;
    } else {
       Config.offline = true;
@@ -555,6 +595,7 @@ bool qrz_start_session(void) {
 
       // XXX: We should check <Error> to see if it's a credentials problem...
    }
+
    return false;
 }
 
@@ -569,9 +610,10 @@ calldata_t *qrz_lookup_callsign(const char *callsign) {
 
    if (callsign == NULL) {
       log_send(mainlog, LOG_DEBUG, "qrz_lookup_callsign called with NULL callsign!");
+
       return false;
    }
-   
+
    if (qrz_session == NULL && (qrz_start_session() == false)) {
       log_send(mainlog, LOG_CRIT, "Attempting to start QRZ session failed!");
       // yuck
@@ -591,20 +633,26 @@ calldata_t *qrz_lookup_callsign(const char *callsign) {
 
    if (http_post(buf, NULL, outbuf, sizeof(outbuf)) != false) {
       log_send(mainlog, LOG_DEBUG, "QRZ response: %.*s", 1024, outbuf);
+
       if (strstr(outbuf, "<Error>") != NULL) {
          log_send(mainlog, LOG_CRIT, "QRZ lookup returned an error response");
          free(calldata);
+
          return NULL;
       }
       qrz_parse_http_data(outbuf, calldata);
+
       if (calldata->callsign[0] == '\0') {
          log_send(mainlog, LOG_WARNING, "result for callsign %s returned, but calldata->callsign is NULL... wtf?", callsign);
          free(calldata);
+
          return NULL;
       }
    } else {
       free(calldata);
+
       return NULL;
    }
+
    return calldata;
 }

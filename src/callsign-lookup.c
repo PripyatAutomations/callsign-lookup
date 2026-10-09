@@ -5,9 +5,9 @@
  */
 
 // XXX: Here we need to try looking things up in the following order:
-//	Cache
-//	FCC ULS Database
-//	QRZ XML API
+// Cache
+// FCC ULS Database
+// QRZ XML API
 //
 // We then need to save it to the cache (if it didn't come from there already)
 // XXX: We need to make this capable of talking on stdio or via a socket
@@ -25,20 +25,20 @@
 #include "gnis-lookup.h"
 #include "fcc-db.h"
 #include "qrz-xml.h"
-#define	PROTO_VER	1
+#define PROTO_VER 1
 
 // Local types.. Gross!
 #define BUFFER_SIZE 1024
 typedef struct {
-   char		buffer[BUFFER_SIZE];
-   size_t 	length;
-   int		fd;
+   char buffer[BUFFER_SIZE];
+   size_t length;
+   int fd;
 } InputBuffer;
 
 struct Config Config = {
-  .cache_default_expiry = 86400 * 3,	// 3 days
-  .offline = true,
-  .use_cache = true
+   .cache_default_expiry = 86400 * 3,   // 3 days
+   .offline = true,
+   .use_cache = true
 };
 
 // globals.. yuck ;)
@@ -49,7 +49,9 @@ bool callsign_quiet = false;
 static Database *calldata_cache = NULL, *calldata_uls = NULL;
 static int callsign_max_requests = 0, callsign_ttl_requests = 0;
 static const char *my_grid = NULL;
-static Coordinates my_coords = { 0, 0 };
+static Coordinates my_coords = {
+   0, 0
+};
 static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
 static sqlite3_stmt *cache_expire_stmt = NULL;
@@ -107,7 +109,7 @@ void run_sql_expire(void) {
    if (cache_expire_stmt == NULL) {
       memset(expiry_sql, 0, 256);
       snprintf(expiry_sql, 256, "DELETE FROM cache WHERE cache_expires <= %lu", now);
-      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql , -1, &cache_expire_stmt, 0);
+      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, expiry_sql, -1, &cache_expire_stmt, 0);
 
       if (rc != SQLITE_OK) {
          cache_expire_stmt = NULL;
@@ -147,6 +149,7 @@ static void callsign_lookup_setup(void) {
    if (Config.use_cache) {
       // is cache database configured?
       callsign_cache_db_owned = cfg_get_path("callsign-lookup:cache-db");
+
       if (callsign_cache_db_owned == NULL) {
          callsign_cache_db = "./db/callsigns.db";
          log_send(mainlog, LOG_NOTICE, "callsign_lookup_setup: cache-db not set; using %s", callsign_cache_db);
@@ -155,8 +158,12 @@ static void callsign_lookup_setup(void) {
       }
       const char *expiry = cfg_get("callsign-lookup:cache-expiry");
       Config.cache_default_expiry = expiry ? timestr2time_t(expiry) : 86400 * 3;
-      if (Config.cache_default_expiry == 0) Config.cache_default_expiry = 86400 * 3;
+
+      if (Config.cache_default_expiry == 0) {
+         Config.cache_default_expiry = 86400 * 3;
+      }
       callsign_keep_stale_offline = cfg_get_bool("callsign-lookup:cache-keep-stale-if-offline", true);
+
       if ((calldata_cache = sql_open(callsign_cache_db)) == NULL) {
          log_send(mainlog, LOG_CRIT, "callsign_lookup_setup: failed opening cache %s! Disabling caching!", callsign_cache_db);
          Config.use_cache = false;
@@ -170,6 +177,7 @@ static void callsign_lookup_setup(void) {
             "county TEXT, class TEXT, codes TEXT, email TEXT, u_views INT, effective DATE,"
             "expires DATE, cache_expires TIMESTAMP, cache_fetched TIMESTAMP);";
          char *schema_error = NULL;
+
          if (sqlite3_exec(calldata_cache->hndl.sqlite3, schema, NULL, NULL, &schema_error) != SQLITE_OK) {
             log_send(mainlog, LOG_CRIT, "failed initializing cache schema: %s", schema_error ? schema_error : "unknown error");
             sqlite3_free(schema_error);
@@ -177,6 +185,7 @@ static void callsign_lookup_setup(void) {
             calldata_cache = NULL;
             Config.use_cache = false;
          }
+
          if (calldata_cache) {
             log_send(mainlog, LOG_INFO, "calldata cache database opened");
          }
@@ -191,7 +200,7 @@ static void callsign_lookup_setup(void) {
       callsign_max_requests = 0;
    }
 }
-   
+
 // save a callsign record to the cache
 bool callsign_cache_save(calldata_t *cp) {
    // Here we insert into the SQL table, for now only sqlite3 is supported but this shouldnt be the case...
@@ -199,6 +208,7 @@ bool callsign_cache_save(calldata_t *cp) {
 
    if (cp == NULL) {
       log_send(mainlog, LOG_DEBUG, "callsign_cache_save: called with NULL calldata pointer...");
+
       return false;
    }
 
@@ -210,6 +220,7 @@ bool callsign_cache_save(calldata_t *cp) {
    // did someone forget to call callsign_lookup_setup() or edit config.json properly?? hmm...
    if (calldata_cache == NULL) {
       log_send(mainlog, LOG_DEBUG, "callsign_cache_save: called but calldata_cache == NULL...");
+
       return false;
    }
 
@@ -228,11 +239,12 @@ bool callsign_cache_save(calldata_t *cp) {
          "( UPPER(@CALL), @DXCC, @ALIAS, @FNAME, @LNAME, @ADDRA, @ADDRB, "
          "@STATE, @ZIP, @GRID, @COUNTRY, @LAT, @LON, @COUNTY, @CLASS, @CODE, @EMAIL, @VIEWS, @EFF, @EXP, @CEXP, @CFETCH);";
 
-      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, sql , -1, &cache_insert_stmt, 0);
+      rc = sqlite3_prepare_v2(calldata_cache->hndl.sqlite3, sql, -1, &cache_insert_stmt, 0);
 
       if (rc != SQLITE_OK) {
          sqlite3_reset(cache_insert_stmt);
-         log_send(mainlog, LOG_WARNING, "Error preparing statement for cache insert of record for %s: %s\n", cp->callsign, sqlite3_errmsg(calldata_cache->hndl.sqlite3));
+         log_send(mainlog, LOG_WARNING, "Error preparing statement for cache insert of record for %s: "
+            "%s\n", cp->callsign, sqlite3_errmsg(calldata_cache->hndl.sqlite3));
       }
    } else {
       sqlite3_reset(cache_insert_stmt);
@@ -272,7 +284,7 @@ bool callsign_cache_save(calldata_t *cp) {
    sqlite3_bind_text(cache_insert_stmt, idx_fname, cp->first_name, -1, SQLITE_TRANSIENT);
    sqlite3_bind_text(cache_insert_stmt, idx_lname, cp->last_name, -1, SQLITE_TRANSIENT);
    sqlite3_bind_text(cache_insert_stmt, idx_addr1, cp->address1, -1, SQLITE_TRANSIENT);
-   sqlite3_bind_text(cache_insert_stmt, idx_addr2, cp->address2, -1, SQLITE_TRANSIENT); 
+   sqlite3_bind_text(cache_insert_stmt, idx_addr2, cp->address2, -1, SQLITE_TRANSIENT);
    sqlite3_bind_text(cache_insert_stmt, idx_state, cp->state, -1, SQLITE_TRANSIENT);
    sqlite3_bind_text(cache_insert_stmt, idx_zip, cp->zip, -1, SQLITE_TRANSIENT);
    sqlite3_bind_text(cache_insert_stmt, idx_grid, cp->grid, -1, SQLITE_TRANSIENT);
@@ -291,7 +303,7 @@ bool callsign_cache_save(calldata_t *cp) {
 
    // execute the query
    rc = sqlite3_step(cache_insert_stmt);
-   
+
    if (rc == SQLITE_OK) {
       // nothing to do here...
       return true;
@@ -314,8 +326,9 @@ calldata_t *callsign_cache_find(const char *callsign) {
    // if no callsign given, bail
    if (callsign == NULL) {
       log_send(mainlog, LOG_CRIT, "callsign_cache_find: callsign == NULL");
+
       return NULL;
-      }
+   }
 
    // try to allocate memory for the calldata_t structure
    if ((cd = malloc(sizeof(calldata_t))) == NULL) {
@@ -331,25 +344,32 @@ calldata_t *callsign_cache_find(const char *callsign) {
 
       if (rc == SQLITE_OK) {
          rc = sqlite3_bind_text(cache_select_stmt, 1, callsign, -1, SQLITE_TRANSIENT);
+
          if (rc == SQLITE_OK) {
 //            log_send(mainlog, LOG_DEBUG, "prepared cache SELECT statement succesfully");
          } else {
             log_send(mainlog, LOG_WARNING, "sqlite3_bind_text cache select callsign failed: %s", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
             free(cd);
+
             return NULL;
          }
       } else {
-         log_send(mainlog, LOG_WARNING, "Error preparing statement for cache select of record for %s: %s\n", callsign, sqlite3_errmsg(calldata_cache->hndl.sqlite3));
+         log_send(mainlog, LOG_WARNING, "Error preparing statement for cache select of record for %s: "
+            "%s\n", callsign, sqlite3_errmsg(calldata_cache->hndl.sqlite3));
          free(cd);
+
          return NULL;
       }
-   } else {	// reset the statement for reuse
+   } else {
+      // reset the statement for reuse
       sqlite3_reset(cache_select_stmt);
       sqlite3_clear_bindings(cache_select_stmt);
       rc = sqlite3_bind_text(cache_select_stmt, 1, callsign, -1, SQLITE_TRANSIENT);
+
       if (rc != SQLITE_OK) {
          log_send(mainlog, LOG_WARNING, "sqlite3_bind_text reset cache select callsign failed: %s", sqlite3_errmsg(calldata_cache->hndl.sqlite3));
          free(cd);
+
          return NULL;
       } else {
          log_send(mainlog, LOG_DEBUG, "reset cache SELECT statement succesfully");
@@ -357,69 +377,73 @@ calldata_t *callsign_cache_find(const char *callsign) {
    }
 
    int step = sqlite3_step(cache_select_stmt);
+
    if (step == SQLITE_ROW || step == SQLITE_DONE) {
       // Find column names, so we can avoid trying to refer to them by number
       int cols = sqlite3_column_count(cache_select_stmt);
 
-      for (int i = 0; i < cols; i++) {
-          const char *cname = sqlite3_column_name(cache_select_stmt, i);
-          if (strcasecmp(cname, "callsign") == 0) {
-             idx_callsign = i;
-          } else if (strcasecmp(cname, "dxcc") == 0) {
-             idx_dxcc = i;
-          } else if (strcasecmp(cname, "aliases") == 0) {
-             idx_aliases = i;
-          } else if (strcasecmp(cname, "first_name") == 0) {
-             idx_fname = i;
-          } else if (strcasecmp(cname, "last_name") == 0) {
-             idx_lname = i;
-          } else if (strcasecmp(cname, "addr1") == 0) {
-             idx_addr1 = i;
-          } else if (strcasecmp(cname, "addr2") == 0) {
-             idx_addr2 = i;
-          } else if (strcasecmp(cname, "state") == 0) {
-             idx_state = i;
-          } else if (strcasecmp(cname, "zip") == 0) {
-             idx_zip = i;
-          } else if (strcasecmp(cname, "grid") == 0) {
-             idx_grid = i;
-          } else if (strcasecmp(cname, "country") == 0) {
-             idx_country = i;
-          } else if (strcasecmp(cname, "latitude") == 0) {
-             idx_latitude = i;
-          } else if (strcasecmp(cname, "longitude") == 0) {
-             idx_longitude = i;
-          } else if (strcasecmp(cname, "county") == 0) {
-             idx_county = i;
-          } else if (strcasecmp(cname, "class") == 0) {
-             idx_class = i;
-          } else if (strcasecmp(cname, "codes") == 0) {
-             idx_codes = i;
-          } else if (strcasecmp(cname, "email") == 0) {
-             idx_email = i;
-          } else if (strcasecmp(cname, "u_views") == 0) {
-             idx_views = i;
-          } else if (strcasecmp(cname, "effective") == 0) {
-             idx_effective = i;
-          } else if (strcasecmp(cname, "expires") == 0) {
-             idx_expiry = i;
-          } else if (strcasecmp(cname, "cache_expires") == 0) {
-             idx_cache_expiry = i;
-          } else if (strcasecmp(cname, "cache_fetched") == 0) {
-             idx_cache_fetched = i;
-          } else if (strcasecmp(cname, "cache_id") == 0) {
-             // skip
-          } else {
-             log_send(mainlog, LOG_DEBUG, "Unknown column: %d (%s)", i, cname);
-          }
+      for (int i = 0 ; i < cols ; i++) {
+         const char *cname = sqlite3_column_name(cache_select_stmt, i);
+
+         if (strcasecmp(cname, "callsign") == 0) {
+            idx_callsign = i;
+         } else if (strcasecmp(cname, "dxcc") == 0) {
+            idx_dxcc = i;
+         } else if (strcasecmp(cname, "aliases") == 0) {
+            idx_aliases = i;
+         } else if (strcasecmp(cname, "first_name") == 0) {
+            idx_fname = i;
+         } else if (strcasecmp(cname, "last_name") == 0) {
+            idx_lname = i;
+         } else if (strcasecmp(cname, "addr1") == 0) {
+            idx_addr1 = i;
+         } else if (strcasecmp(cname, "addr2") == 0) {
+            idx_addr2 = i;
+         } else if (strcasecmp(cname, "state") == 0) {
+            idx_state = i;
+         } else if (strcasecmp(cname, "zip") == 0) {
+            idx_zip = i;
+         } else if (strcasecmp(cname, "grid") == 0) {
+            idx_grid = i;
+         } else if (strcasecmp(cname, "country") == 0) {
+            idx_country = i;
+         } else if (strcasecmp(cname, "latitude") == 0) {
+            idx_latitude = i;
+         } else if (strcasecmp(cname, "longitude") == 0) {
+            idx_longitude = i;
+         } else if (strcasecmp(cname, "county") == 0) {
+            idx_county = i;
+         } else if (strcasecmp(cname, "class") == 0) {
+            idx_class = i;
+         } else if (strcasecmp(cname, "codes") == 0) {
+            idx_codes = i;
+         } else if (strcasecmp(cname, "email") == 0) {
+            idx_email = i;
+         } else if (strcasecmp(cname, "u_views") == 0) {
+            idx_views = i;
+         } else if (strcasecmp(cname, "effective") == 0) {
+            idx_effective = i;
+         } else if (strcasecmp(cname, "expires") == 0) {
+            idx_expiry = i;
+         } else if (strcasecmp(cname, "cache_expires") == 0) {
+            idx_cache_expiry = i;
+         } else if (strcasecmp(cname, "cache_fetched") == 0) {
+            idx_cache_fetched = i;
+         } else if (strcasecmp(cname, "cache_id") == 0) {
+            // skip
+         } else {
+            log_send(mainlog, LOG_DEBUG, "Unknown column: %d (%s)", i, cname);
+         }
       }
 
       // Copy the data into the calldata_t
       cd->origin = DATASRC_CACHE;
       cd->cached = true;
       const unsigned char *cs = sqlite3_column_text(cache_select_stmt, idx_callsign);
+
       if (cs == NULL) {
          free(cd);
+
          return NULL;
       }
       snprintf(cd->callsign, MAX_CALLSIGN, "%s", cs);
@@ -447,6 +471,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
    } else {
       log_send(mainlog, LOG_DEBUG, "no rows - step: %d", step);
       free(cd);
+
       return NULL;
    }
 
@@ -456,7 +481,8 @@ calldata_t *callsign_cache_find(const char *callsign) {
       if (Config.offline) {
          // are we configured to discard even when offline?
          if (!callsign_keep_stale_offline) {
-            log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry), forcing cache deletion", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
+            log_send(mainlog, LOG_WARNING, "cache expiry: record for %s is %lu seconds old (%lu expiry), forcing cache "
+               "deletion", cd->callsign, (now - cd->cache_fetched), (cd->cache_expiry - cd->cache_fetched));
 
             // we should run a SQL expiry here to delete stale records
             run_sql_expire();
@@ -464,14 +490,17 @@ calldata_t *callsign_cache_find(const char *callsign) {
             // free the data structure before returning, so will look it up
             free(cd);
             cd = NULL;
-         } else {	// 
+         } else {
+            //
             log_send(mainlog, LOG_WARNING, "returning stale result for %s (%lu old)", cd->callsign, (cd->cache_expiry - now));
          }
-      } else {         // we are online, so if it's expired, force a lookup
+      } else {
+         // we are online, so if it's expired, force a lookup
          free(cd);
          cd = NULL;
       }
    } // expired?
+
    return cd;
 }
 
@@ -504,12 +533,14 @@ calldata_t *callsign_lookup(const char *callsign, bool no_cache) {
             if (res == false) {
                log_send(mainlog, LOG_CRIT, "Failed logging into QRZ, setting offline mode!");
                Config.offline = true;
-            } else {	// if we logged in, clear offline mode
+            } else {
+               // if we logged in, clear offline mode
                Config.offline = false;
             }
          }
       }
    }
+
    // nope, check QRZ XML API, if the user has an account
    if (!Config.offline && Config.use_qrz && qr == NULL) {
       if ((qr = qrz_lookup_callsign(callsign)) != NULL) {
@@ -527,6 +558,7 @@ calldata_t *callsign_lookup(const char *callsign, bool no_cache) {
    // no results :(
    if (qr == NULL) {
       log_send(mainlog, LOG_WARNING, "no matches found for callsign %s", callsign);
+
       return NULL;
    }
 
@@ -549,6 +581,7 @@ calldata_t *callsign_lookup(const char *callsign, bool no_cache) {
          sql_fini();
       }
    }
+
    return qr;
 }
 
@@ -558,7 +591,9 @@ static void exit_fix_config(void) {
    exit(255);
 }
 
-static const char *origin_name[5] = { "NONE", "ULS", "QRZ", "CACHE", NULL };
+static const char *origin_name[5] = {
+   "NONE", "ULS", "QRZ", "CACHE", NULL
+};
 
 static void init_my_coords(void) {
    const char *coords = cfg_get("site:coordinates");
@@ -570,21 +605,24 @@ static void init_my_coords(void) {
       if (comma == NULL) {
          log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (missing comma)!");
       } else {
-         comma++;	// skip the comma
+         comma++;       // skip the comma
 
-         if (comma == NULL) {		// this is an error
+         if (comma == NULL) {
+            // this is an error
             log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (no value after comma)!");
-         } else  if (*comma == ' ') {	// trim leading white space
-             while (*comma == ' ') {
-                comma++;
-             }
+         } else if (*comma == ' ') {
+            // trim leading white space
+            while (*comma == ' ') {
+               comma++;
+            }
          }
-         float lat = atof(coords);	// this stops at the comma after latitude
-         float lon = atof(comma);		// this stops at any text after longitude
+         float lat = atof(coords);      // this stops at the comma after latitude
+         float lon = atof(comma);               // this stops at any text after longitude
          my_coords.latitude = lat;
          my_coords.longitude = lon;
       }
-   } else if (my_grid && *my_grid) {	// coordinates override the grid square when set
+   } else if (my_grid && *my_grid) {
+      // coordinates override the grid square when set
       my_coords = maidenhead2latlon(my_grid);
    }
    log_send(mainlog, LOG_DEBUG, "configured mygrid: %s, lat: %f, lon: %f", my_grid ? my_grid : "(unset)", my_coords.latitude, my_coords.longitude);
@@ -592,99 +630,173 @@ static void init_my_coords(void) {
 
 // dump all the set attributes of a calldata to the screen
 bool calldata_dump(calldata_t *calldata, const char *callsign) {
-   if (!calldata) return false;
+   if (!calldata) {
+      return false;
+   }
    const char *online = Config.offline ? "OFFLINE" : "ONLINE";
+
    if (calldata->callsign[0] == '\0') {
       const char *query = calldata->query_callsign[0] ? calldata->query_callsign : callsign;
       fprintf(stdout, "404 NOT FOUND %s %s %lu\n", query ? query : "(unknown)", online, now);
+
       return false;
    }
 
    char *opclass = NULL;
+
    if (calldata->opclass[0]) {
       if (strcasecmp(calldata->country, "United States") == 0) {
          switch (calldata->opclass[0]) {
-            case 'N': opclass = "Novice"; break;
-            case 'A': opclass = "Advanced"; break;
-            case 'T': opclass = "Technician"; break;
-            case 'G': opclass = "General"; break;
-            case 'E': opclass = "Extra"; break;
-            default: opclass = calldata->opclass; break;
+            case 'N': {
+               opclass = "Novice";
+               break;
+            }
+            case 'A': {
+               opclass = "Advanced";
+               break;
+            }
+            case 'T': {
+               opclass = "Technician";
+               break;
+            }
+            case 'G': {
+               opclass = "General";
+               break;
+            }
+            case 'E': {
+               opclass = "Extra";
+               break;
+            }
+            default: {
+               opclass = calldata->opclass;
+               break;
+            }
          }
       } else {
          opclass = calldata->opclass;
       }
    }
 
-   fprintf(stdout, "200 OK %s %s %lu %s\n", calldata->callsign, online,
-      time(NULL), origin_name[calldata->origin]);
-   fprintf(stdout, "Callsign: %s%s%s%s\n", calldata->callsign,
-      opclass ? " (" : "", opclass ? opclass : "", opclass ? ")" : "");
-   if (calldata->first_name[0]) fprintf(stdout, "Name: %s %s\n", calldata->first_name, calldata->last_name);
-   if (calldata->email[0]) fprintf(stdout, "Email: %s\n", calldata->email);
-   if (calldata->address1[0]) fprintf(stdout, "Address1: %s\n", calldata->address1);
-   if (calldata->address_attn[0]) fprintf(stdout, "Attn: %s\n", calldata->address_attn);
-   if (calldata->address2[0]) fprintf(stdout, "Address2: %s\n", calldata->address2);
-   if (calldata->county[0]) fprintf(stdout, "County: %s\n", calldata->county);
-   if (calldata->state[0]) fprintf(stdout, "State: %s\n", calldata->state);
-   if (calldata->zip[0]) fprintf(stdout, "Zip: %s\n", calldata->zip);
-   if (calldata->country[0]) fprintf(stdout, "Country: %s (%d)\n", calldata->country, calldata->country_code);
+   fprintf(stdout, "200 OK %s %s %lu %s\n", calldata->callsign, online, time(NULL), origin_name[calldata->origin]);
+   fprintf(stdout, "Callsign: %s%s%s%s\n", calldata->callsign, opclass ? " (" : "", opclass ? opclass : "", opclass ? ")" : "");
+
+   if (calldata->first_name[0]) {
+      fprintf(stdout, "Name: %s %s\n", calldata->first_name, calldata->last_name);
+   }
+
+   if (calldata->email[0]) {
+      fprintf(stdout, "Email: %s\n", calldata->email);
+   }
+
+   if (calldata->address1[0]) {
+      fprintf(stdout, "Address1: %s\n", calldata->address1);
+   }
+
+   if (calldata->address_attn[0]) {
+      fprintf(stdout, "Attn: %s\n", calldata->address_attn);
+   }
+
+   if (calldata->address2[0]) {
+      fprintf(stdout, "Address2: %s\n", calldata->address2);
+   }
+
+   if (calldata->county[0]) {
+      fprintf(stdout, "County: %s\n", calldata->county);
+   }
+
+   if (calldata->state[0]) {
+      fprintf(stdout, "State: %s\n", calldata->state);
+   }
+
+   if (calldata->zip[0]) {
+      fprintf(stdout, "Zip: %s\n", calldata->zip);
+   }
+
+   if (calldata->country[0]) {
+      fprintf(stdout, "Country: %s (%d)\n", calldata->country, calldata->country_code);
+   }
 
    if (calldata->latitude != 0 && calldata->longitude != 0) {
       fprintf(stdout, "WGS-84: %.3f, %.3f", calldata->latitude, calldata->longitude);
-      if (calldata->grid[0]) fprintf(stdout, " ( %s )", calldata->grid);
-      if (calldata->dxcc) fprintf(stdout, "  DXCC %d", calldata->dxcc);
+
+      if (calldata->grid[0]) {
+         fprintf(stdout, " ( %s )", calldata->grid);
+      }
+
+      if (calldata->dxcc) {
+         fprintf(stdout, "  DXCC %d", calldata->dxcc);
+      }
       fputc('\n', stdout);
    } else if (calldata->grid[0]) {
       fprintf(stdout, "Grid: %s", calldata->grid);
-      if (calldata->dxcc) fprintf(stdout, "  DXCC %d", calldata->dxcc);
+
+      if (calldata->dxcc) {
+         fprintf(stdout, "  DXCC %d", calldata->dxcc);
+      }
       fputc('\n', stdout);
    } else if (calldata->dxcc) {
       fprintf(stdout, "DXCC: %d\n", calldata->dxcc);
    }
 
    if (my_grid && calldata->latitude != 0 && calldata->longitude != 0) {
-      if (my_coords.latitude == 0 && my_coords.longitude == 0) init_my_coords();
-      double distance = calculateDistance(my_coords.latitude, my_coords.longitude,
-         calldata->latitude, calldata->longitude);
-      double bearing = calculateBearing(my_coords.latitude, my_coords.longitude,
-         calldata->latitude, calldata->longitude);
-      if (distance > 0 && bearing > 0)
-         fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n",
-            distance * 0.6214, distance, bearing);
+      if (my_coords.latitude == 0 && my_coords.longitude == 0) {
+         init_my_coords();
+      }
+      double distance = calculateDistance(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
+      double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, calldata->latitude, calldata->longitude);
+
+      if (distance > 0 && bearing > 0) {
+         fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", distance * 0.6214, distance, bearing);
+      }
    }
 
    if (calldata->license_effective > 0 || calldata->license_expiry > 0) {
       char effective[32] = "UNKNOWN", expiry[32] = "UNKNOWN";
+
       if (calldata->license_effective > 0) {
          struct tm *tm = localtime(&calldata->license_effective);
-         if (tm) strftime(effective, sizeof(effective), "%Y/%m/%d", tm);
+
+         if (tm) {
+            strftime(effective, sizeof(effective), "%Y/%m/%d", tm);
+         }
       }
+
       if (calldata->license_expiry > 0) {
          struct tm *tm = localtime(&calldata->license_expiry);
-         if (tm) strftime(expiry, sizeof(expiry), "%Y/%m/%d", tm);
+
+         if (tm) {
+            strftime(expiry, sizeof(expiry), "%Y/%m/%d", tm);
+         }
       }
       fprintf(stdout, "License Effective: %s, Expires: %s\n", effective, expiry);
    }
 
    fprintf(stdout, "Cached: %s\n", calldata->cached ? "true" : "false");
+
    if (calldata->cached) {
       char fetched[32] = "UNKNOWN", expiry[32] = "UNKNOWN";
       struct tm *tm = localtime(&calldata->cache_fetched);
-      if (tm) strftime(fetched, sizeof(fetched), "%Y/%m/%d %H:%M:%S", tm);
+
+      if (tm) {
+         strftime(fetched, sizeof(fetched), "%Y/%m/%d %H:%M:%S", tm);
+      }
       tm = localtime(&calldata->cache_expiry);
-      if (tm) strftime(expiry, sizeof(expiry), "%Y/%m/%d %H:%M:%S", tm);
+
+      if (tm) {
+         strftime(expiry, sizeof(expiry), "%Y/%m/%d %H:%M:%S", tm);
+      }
       fprintf(stdout, "Cache-Fetched: %s\n", fetched);
       fprintf(stdout, "Cache-Expiry: %s\n", expiry);
    }
    fprintf(stdout, "+EOR\n\n");
+
    return true;
 }
 
 // XXX: Create a socket IO type to pass around here
 typedef struct sockio {
-  char readbuf[16384];
-  char writebuf[32768];
+   char readbuf[16384];
+   char writebuf[32768];
 } sockio_t;
 
 static bool parse_request(const char *line) {
@@ -714,17 +826,25 @@ static bool parse_request(const char *line) {
       fprintf(stdout, "+OFFLINE\n\n");
    } else if (strncasecmp(line, "/CALL", 5) == 0) {
       const char *callsign = line + 6;
-      while (*callsign == ' ' || *callsign == '\t') callsign++;
+      while (*callsign == ' ' || *callsign == '\t') {
+         callsign++;
+      }
       char query[128];
       snprintf(query, sizeof(query), "%s", callsign);
       bool no_cache = false;
       char *extra = strpbrk(query, " \t");
+
       if (extra) {
          *extra++ = '\0';
-         while (*extra == ' ' || *extra == '\t') extra++;
-         if (strcasecmp(extra, "NOCACHE") == 0) no_cache = true;
-         else {
+         while (*extra == ' ' || *extra == '\t') {
+            extra++;
+         }
+
+         if (strcasecmp(extra, "NOCACHE") == 0) {
+            no_cache = true;
+         } else {
             fprintf(stdout, "400 Bad Request - invalid /CALL option\n+EOR\n\n");
+
             return false;
          }
       }
@@ -733,147 +853,157 @@ static bool parse_request(const char *line) {
 
       const char *online = (Config.offline ? "OFFLINE" : "ONLINE");
 
-         if (calldata == NULL) {
-            fprintf(stdout, "404 NOT FOUND %s %s %lu\n", query, online, now);
-            log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", query);
-            fprintf(stdout, "+EOR\n\n");
-         } else {
+      if (calldata == NULL) {
+         fprintf(stdout, "404 NOT FOUND %s %s %lu\n", query, online, now);
+         log_send(mainlog, LOG_NOTICE, "Callsign %s was not found in enabled databases.", query);
+         fprintf(stdout, "+EOR\n\n");
+      } else {
          // Send the result
          calldata_dump(calldata, query);
          free(calldata);
          calldata = NULL;
       }
    } else if (strncasecmp(line, "/GNIS", 5) == 0) {
-     const char *point = line + 6;
+      const char *point = line + 6;
 
-     if (*point == '\0') {
-        fprintf(stdout, "You must specify a WGS-84 coordinate or a 4-10 digit grid square.\n");
-        return false;
-     }
+      if (*point == '\0') {
+         fprintf(stdout, "You must specify a WGS-84 coordinate or a 4-10 digit grid square.\n");
+
+         return false;
+      }
    } else if (strncasecmp(line, "/GRID", 5) == 0) {
-     Coordinates coord = { 0, 0 };
-     const char *point = line + 6;
-     const char *comma = NULL;
-     char dupe_point[11];
-     const char *their_grid = NULL;
+      Coordinates coord = {
+         0, 0
+      };
+      const char *point = line + 6;
+      const char *comma = NULL;
+      char dupe_point[11];
+      const char *their_grid = NULL;
 
-     if (*(line + 6) == '\0') {
-        fprintf(stdout, "You must specify a WGS-84 coordinate or a 4-10 digit grid square.\n");
-        return false;
-     }
+      if (*(line + 6) == '\0') {
+         fprintf(stdout, "You must specify a WGS-84 coordinate or a 4-10 digit grid square.\n");
 
-     // skip leading whitespace...
-     const char *p = point;
-     while (p != NULL && (*p == ' ' || *p == '\t')) {
-        p++;
-     }
+         return false;
+      }
 
-     // if no point is passed...
-     if (p != NULL) {
-        comma = strchr(p, ',');
+      // skip leading whitespace...
+      const char *p = point;
+      while (p != NULL && (*p == ' ' || *p == '\t')) {
+         p++;
+      }
 
-        if (comma == NULL) {
-           // skip leading spaces
-           size_t point_len = strlen(p);
-           // is it too long?
-           if (point_len > 10) {
-              fprintf(stderr, "+ERROR Invalid grid square '%s' (over 10 characters)\n", point);
-              return false;
-           }
-           memset(dupe_point, 0, 11);
-           memcpy(dupe_point, p, point_len);
-          
-           // upper case it, for readability
-           for (int i = 0; i < point_len; i++) {
-              // upper case all letters
-              if (!isdigit(dupe_point[i])) {
-                 dupe_point[i] = toupper(point[i]);
-              } else {
-                 dupe_point[i] = p[i];
-              }
-           }
-           coord = maidenhead2latlon(dupe_point);
-        } else {
-           // skip leading white space
-           const char *p = point;
-           while (p != NULL && (*p == ' ' || *p == '\t')) {
-              p++;
-           }
+      // if no point is passed...
+      if (p != NULL) {
+         comma = strchr(p, ',');
 
-           // Calculate how many digits of precision we can accomodate with the data given
-           int lat_digits = 0, lon_digits = 0;
-           const char *lat_dot = strchr(p, '.');
-           const char *lon_dot = strchr(comma, '.');
+         if (comma == NULL) {
+            // skip leading spaces
+            size_t point_len = strlen(p);
 
-           if (lat_dot != NULL && lon_dot != NULL) {
-              const char *lon_end = lon_dot + strlen(lon_dot);
-              lat_digits = (int)((comma - 1) - (lat_dot + 1));	// get lat length
-              comma++;						// skip the comma
-              lon_digits = (int)(lon_end - (lon_dot + 1));		// figure out lon length
+            // is it too long?
+            if (point_len > 10) {
+               fprintf(stderr, "+ERROR Invalid grid square '%s' (over 10 characters)\n", point);
+
+               return false;
+            }
+            memset(dupe_point, 0, 11);
+            memcpy(dupe_point, p, point_len);
+
+            // upper case it, for readability
+            for (int i = 0 ; i < point_len ; i++) {
+               // upper case all letters
+               if (!isdigit(dupe_point[i])) {
+                  dupe_point[i] = toupper(point[i]);
+               } else {
+                  dupe_point[i] = p[i];
+               }
+            }
+
+            coord = maidenhead2latlon(dupe_point);
+         } else {
+            // skip leading white space
+            const char *p = point;
+            while (p != NULL && (*p == ' ' || *p == '\t')) {
+               p++;
+            }
+            // Calculate how many digits of precision we can accomodate with the data given
+            int lat_digits = 0, lon_digits = 0;
+            const char *lat_dot = strchr(p, '.');
+            const char *lon_dot = strchr(comma, '.');
+
+            if (lat_dot != NULL && lon_dot != NULL) {
+               const char *lon_end = lon_dot + strlen(lon_dot);
+               lat_digits = (int)((comma - 1) - (lat_dot + 1)); // get lat length
+               comma++;                                         // skip the comma
+               lon_digits = (int)(lon_end - (lon_dot + 1));             // figure out lon length
 //              log_send(mainlog, LOG_DEBUG, "precision: lat_digits: %lu, lon_digits: %lu", lat_digits, lon_digits);
-           } else {
-              fprintf(stdout, "+ERROR: You must specify at least one decimal place for each coordinate\n");
-              return false;
-           }
+            } else {
+               fprintf(stdout, "+ERROR: You must specify at least one decimal place for each coordinate\n");
 
-           // set the precision of our coordinates
-           if (lat_digits >= 3 && lon_digits >= 3) {
-              coord.precision = 5;
-           } else if (lat_digits >= 2 && lon_digits >= 2) {
-              coord.precision = 4;
-           } else if (lat_digits >= 1 && lon_digits >= 1) {
-              coord.precision = 3;
-           } else {
-              coord.precision = 2;
-           }
+               return false;
+            }
 
-           if (comma == NULL) {		// this is an error
-              log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (no value after comma)!");
-              return false;
-           } else  if (*comma == ' ') {	// trim leading white space on longitude
-              while (*comma == ' ') {
-                 comma++;
-              }
-           }
+            // set the precision of our coordinates
+            if (lat_digits >= 3 && lon_digits >= 3) {
+               coord.precision = 5;
+            } else if (lat_digits >= 2 && lon_digits >= 2) {
+               coord.precision = 4;
+            } else if (lat_digits >= 1 && lon_digits >= 1) {
+               coord.precision = 3;
+            } else {
+               coord.precision = 2;
+            }
 
-           float lat = atof(p);		// this stops at the comma after latitude
-           float lon = atof(comma);	// this stops at any text after longitude
-           coord.latitude = lat;
-           coord.longitude = lon;
-           their_grid = latlon2maidenhead(&coord);
-        }
-     }
+            if (comma == NULL) {
+               // this is an error
+               log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (no value after comma)!");
 
-     if (coord.latitude == 0 && coord.longitude == 0) {
-        return false;
-     }
+               return false;
+            } else if (*comma == ' ') {
+               // trim leading white space on longitude
+               while (*comma == ' ') {
+                  comma++;
+               }
+            }
 
-     if (comma == NULL) {
-        fprintf(stdout, "Grid: %s\n", dupe_point);
-     } else {
-        fprintf(stdout, "Grid: %s\n", their_grid);
-     }
+            float lat = atof(p);        // this stops at the comma after latitude
+            float lon = atof(comma);    // this stops at any text after longitude
+            coord.latitude = lat;
+            coord.longitude = lon;
+            their_grid = latlon2maidenhead(&coord);
+         }
+      }
 
-     // XXX: this is ugly, can we make it more compact?
+      if (coord.latitude == 0 && coord.longitude == 0) {
+         return false;
+      }
+
+      if (comma == NULL) {
+         fprintf(stdout, "Grid: %s\n", dupe_point);
+      } else {
+         fprintf(stdout, "Grid: %s\n", their_grid);
+      }
+
+      // XXX: this is ugly, can we make it more compact?
 //     fprintf(stdout, "WGS-84: %*f, %*f\n", coord.precision, coord.latitude, coord.precision, coord.longitude);
-     if (coord.precision >= 5) {
-        fprintf(stdout, "WGS-84: %.5f, %.5f\n", coord.latitude, coord.longitude);
-     } else if (coord.precision <= 4) {
-        fprintf(stdout, "WGS-84: %.4f, %.4f\n", coord.latitude, coord.longitude);
-     } else if (coord.precision <= 3) {
-        fprintf(stdout, "WGS-84: %.3f, %.3f\n", coord.latitude, coord.longitude);
-     } else if (coord.precision <= 2) {
-        fprintf(stdout, "WGS-84: %.2f, %.2f\n", coord.latitude, coord.longitude);
-     } else if (coord.precision <= 1) {
-        fprintf(stdout, "WGS-84: %.1f, %.1f\n", coord.latitude, coord.longitude);
-     }
+      if (coord.precision >= 5) {
+         fprintf(stdout, "WGS-84: %.5f, %.5f\n", coord.latitude, coord.longitude);
+      } else if (coord.precision <= 4) {
+         fprintf(stdout, "WGS-84: %.4f, %.4f\n", coord.latitude, coord.longitude);
+      } else if (coord.precision <= 3) {
+         fprintf(stdout, "WGS-84: %.3f, %.3f\n", coord.latitude, coord.longitude);
+      } else if (coord.precision <= 2) {
+         fprintf(stdout, "WGS-84: %.2f, %.2f\n", coord.latitude, coord.longitude);
+      } else if (coord.precision <= 1) {
+         fprintf(stdout, "WGS-84: %.1f, %.1f\n", coord.latitude, coord.longitude);
+      }
 
-     double distance = calculateDistance(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
-     double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
+      double distance = calculateDistance(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
+      double bearing = calculateBearing(my_coords.latitude, my_coords.longitude, coord.latitude, coord.longitude);
 
-     float heading_miles = distance * 0.6214;
-     fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
-     fprintf(stdout, "+EOR\n\n");
+      float heading_miles = distance * 0.6214;
+      fprintf(stdout, "Heading: %.1f mi / %.1f km at %.0f degrees\n", heading_miles, distance, bearing);
+      fprintf(stdout, "+EOR\n\n");
    } else if (strncasecmp(line, "/EXIT", 5) == 0) {
       log_send(mainlog, LOG_CRIT, "Got EXIT from client. Goodbye!");
       fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
@@ -887,57 +1017,60 @@ static bool parse_request(const char *line) {
       // XXX: Someday we should implement a read-line interface and treat this as a callsign lookup ;)
       fprintf(stdout, "400 Bad Request - Your client sent a request I do not understand... Try /HELP for commands!\n");
    }
-   
+
    return false;
 }
 
 static void stdin_cb(EV_P_ ev_io *w, int revents) {
-    if (EV_ERROR & revents) {
-       fprintf(stderr, "+ERROR Error event in stdin watcher\n");
-       return;
-    }
+   if (EV_ERROR & revents) {
+      fprintf(stderr, "+ERROR Error event in stdin watcher\n");
 
-    InputBuffer *input = (InputBuffer *)w->data;
-    ssize_t bytesRead = read(STDIN_FILENO, input->buffer + input->length, BUFFER_SIZE - input->length);
+      return;
+   }
 
-    if (bytesRead < 0) {
-        perror("read");
-        return;
-    }
+   InputBuffer *input = (InputBuffer *)w->data;
+   ssize_t bytesRead = read(STDIN_FILENO, input->buffer + input->length, BUFFER_SIZE - input->length);
 
-    if (bytesRead == 0) {
-       // End of file (Ctrl+D pressed)
-       ev_io_stop(EV_A, w);
-       free(input);
-       log_send(mainlog, LOG_CRIT, "got ^D (EOF), exiting!");
-       fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
-       fflush(stdout);
+   if (bytesRead < 0) {
+      perror("read");
+
+      return;
+   }
+
+   if (bytesRead == 0) {
+      // End of file (Ctrl+D pressed)
+      ev_io_stop(EV_A, w);
+      free(input);
+      log_send(mainlog, LOG_CRIT, "got ^D (EOF), exiting!");
+      fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
+      fflush(stdout);
       sql_fini();
-       return;
-    }
 
-    input->length += bytesRead;
+      return;
+   }
 
-    // Process complete lines
-    char *newline;
-    while ((newline = strchr(input->buffer, '\n')) != NULL) {
-       *newline = '\0';  // Replace newline character with null terminator
-       parse_request(input->buffer);
-       fflush(stdout);
-       memmove(input->buffer, newline + 1, input->length - (newline - input->buffer));
-       input->length -= (newline - input->buffer) + 1;
-    }
+   input->length += bytesRead;
 
-    // If buffer is full and no newline is found, consider it an incomplete line
+   // Process complete lines
+   char *newline;
+   while ((newline = strchr(input->buffer, '\n')) != NULL) {
+      *newline = '\0';   // Replace newline character with null terminator
+      parse_request(input->buffer);
+      fflush(stdout);
+      memmove(input->buffer, newline + 1, input->length - (newline - input->buffer));
+      input->length -= (newline - input->buffer) + 1;
+   }
+
+   // If buffer is full and no newline is found, consider it an incomplete line
    if (input->length == BUFFER_SIZE) {
-       fprintf(stdout, "+ERROR Input buffer full, discarding incomplete line: %s\n", input->buffer);
-       fflush(stdout);
-       input->length = 0;  // Discard the incomplete line
+      fprintf(stdout, "+ERROR Input buffer full, discarding incomplete line: %s\n", input->buffer);
+      fflush(stdout);
+      input->length = 0;   // Discard the incomplete line
    }
 }
 
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
-   now = time(NULL);			   // update our shared timestamp
+   now = time(NULL);                       // update our shared timestamp
 
    // every 3 hours, expire old cache data entries
    if ((now % 10800) == 0) {
@@ -956,7 +1089,7 @@ int main(int argc, char **argv) {
    const char *grid_query = NULL;
    bool no_cache = false;
 
-#if	defined(DEBUG)
+#if     defined(DEBUG)
    // setup logging for address sanitizers early
    setenv("ASAN_OPTIONS", "log_path=asan.log", 1);
    setenv("UBSAN_OPTIONS", "log_path=ubsan.log", 1);
@@ -968,22 +1101,28 @@ int main(int argc, char **argv) {
    int opt;
    while ((opt = getopt(argc, argv, "f:g:qnh")) != -1) {
       switch (opt) {
-      case 'f':
-         config_file = optarg;
-         break;
-      case 'q':
-         callsign_quiet = true;
-         break;
-      case 'g':
-         grid_query = optarg;
-         break;
-      case 'n':
-         no_cache = true;
-         break;
-      case 'h':
-      default:
-         fprintf(stderr, "Usage: %s [-q] [-n] -f parent-config.ini [CALLSIGN ...] | -g GRID|COORD\n", argv[0]);
-         return 1;
+         case 'f': {
+            config_file = optarg;
+            break;
+         }
+         case 'q': {
+            callsign_quiet = true;
+            break;
+         }
+         case 'g': {
+            grid_query = optarg;
+            break;
+         }
+         case 'n': {
+            no_cache = true;
+            break;
+         }
+         case 'h':
+         default: {
+            fprintf(stderr, "Usage: %s [-q] [-n] -f parent-config.ini [CALLSIGN ...] | -g GRID|COORD\n", argv[0]);
+
+            return 1;
+         }
       }
    }
 
@@ -993,18 +1132,23 @@ int main(int argc, char **argv) {
       cfg = cfg_load(config_file);
    } else {
       char *fullpath = find_file_by_list(configs, num_configs);
+
       if (fullpath) {
          config_file = fullpath;
          cfg = cfg_load(config_file);
       }
    }
-   if (!config_file || !cfg)
+
+   if (!config_file || !cfg) {
       exit_fix_config();
+   }
    logger_init("-", false);
    log_send(mainlog, LOG_NOTICE, "%s/%s starting up!", progname, VERSION);
    // how often should we retry going online?
    Config.online_mode_retry = timestr2time_t(cfg_get("callsign-lookup:retry-delay"));
-   if (Config.online_mode_retry < 30) { // enforce a minimum of 30 seconds between retries
+
+   if (Config.online_mode_retry < 30) {
+      // enforce a minimum of 30 seconds between retries
       Config.online_mode_retry = 30;
    }
 
@@ -1033,11 +1177,8 @@ int main(int argc, char **argv) {
    printf("+NOTICE This server is experimental. Please feel free to suggest improvements or send patches\n");
    printf("+NOTICE Use /HELP to see available commands.\n");
    printf("+PROTO %d mytime=%lu\n", PROTO_VER, now);
-   printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n",
-         progname, VERSION,
-         (Config.use_qrz ? "On" : "Off"), (Config.offline ? " (offline)" : ""),
-         (Config.use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"),
-         (Config.use_cache ? "On" : "Off"));
+   printf("+OK %s/%s ready to answer requests. QRZ: %s%s, ULS: %s, GNIS: %s, Cache: %s\n", progname, VERSION, (Config.use_qrz ? "On" : "Off"), (Config.offline ?
+      " (offline)" : ""), (Config.use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (Config.use_cache ? "On" : "Off"));
    // The helper is normally connected to a pipe.  Do not leave the ready
    // banner buffered while the parent waits for it before sending a request.
    fflush(stdout);
@@ -1053,7 +1194,7 @@ int main(int argc, char **argv) {
       fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
       dying = true;
    } else if (optind < argc) {
-      for (int i = optind; i < argc; i++) {
+      for (int i = optind ; i < argc ; i++) {
          char *callsign = argv[i];
          calldata_t *calldata = NULL;
 
@@ -1074,11 +1215,14 @@ int main(int argc, char **argv) {
             calldata = NULL;
          }
       }
+
       fprintf(stdout, "+GOODBYE Hope you had a nice session! Exiting.\n");
 
       dying = true;
    } else {
-      log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: %s", progname, VERSION, (Config.use_qrz ? "On" : "Off"), (Config.use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (Config.use_cache ? "On" : "Off"));
+      log_send(mainlog, LOG_INFO, "%s/%s ready to answer requests. QRZ: %s, ULS: %s, GNIS: %s, Cache: "
+         "%s", progname, VERSION, (Config.use_qrz ? "On" : "Off"), (Config.use_uls ? "On" : "Off"), (use_gnis ? "On" : "Off"), (Config.use_cache ? "On" : "Off")
+         );
    }
 
    // run the EV main loop...
@@ -1094,5 +1238,6 @@ int main(int argc, char **argv) {
       free(input);
       input = NULL;
    }
+
    return 0;
 }
