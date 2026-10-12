@@ -36,7 +36,7 @@ typedef struct {
 } InputBuffer;
 
 struct Config Config = {
-   .cache_default_expiry = 86400 * 3,   // 3 days
+   .cache_default_expiry = 86400 * 3,  // 3 days
    .offline = true,
    .use_cache = true
 };
@@ -52,6 +52,7 @@ static const char *my_grid = NULL;
 static Coordinates my_coords = {
    0, 0
 };
+
 static sqlite3_stmt *cache_insert_stmt = NULL;
 static sqlite3_stmt *cache_select_stmt = NULL;
 static sqlite3_stmt *cache_expire_stmt = NULL;
@@ -61,6 +62,7 @@ static const char *configs[] = {
    "./config/callsign-lookup.cfg",
    "~/.config/callsign-lookup.cfg"
 };
+
 static const int num_configs = sizeof(configs) / sizeof(configs[0]);
 
 // common shared things for our library
@@ -174,8 +176,7 @@ static void callsign_lookup_setup(void) {
             "cache_id INTEGER PRIMARY KEY AUTOINCREMENT, callsign VARCHAR(24) UNIQUE,"
             "dxcc TEXT, aliases TEXT, first_name TEXT, last_name TEXT, addr1 TEXT, addr2 TEXT,"
             "state TEXT, zip TEXT, grid TEXT, country TEXT, latitude FLOAT, longitude FLOAT,"
-            "county TEXT, class TEXT, codes TEXT, email TEXT, u_views INT, effective DATE,"
-            "expires DATE, cache_expires TIMESTAMP, cache_fetched TIMESTAMP);";
+            "county TEXT, class TEXT, codes TEXT, email TEXT, u_views INT, effective DATE," "expires DATE, cache_expires TIMESTAMP, cache_fetched TIMESTAMP);";
          char *schema_error = NULL;
 
          if (sqlite3_exec(calldata_cache->hndl.sqlite3, schema, NULL, NULL, &schema_error) != SQLITE_OK) {
@@ -191,7 +192,6 @@ static void callsign_lookup_setup(void) {
          }
       }
    }
-
    // after X requests, should we exit with 0 status and restart?
    callsign_max_requests = cfg_get_int("callsign-lookup:respawn-after-requests", 0);
 
@@ -499,7 +499,7 @@ calldata_t *callsign_cache_find(const char *callsign) {
          free(cd);
          cd = NULL;
       }
-   } // expired?
+   }                            // expired?
 
    return cd;
 }
@@ -567,7 +567,6 @@ calldata_t *callsign_lookup(const char *callsign, bool no_cache) {
       log_send(mainlog, LOG_DEBUG, "adding new item (%s) to cache", callsign);
       callsign_cache_save(qr);
    }
-
    // increment total requests counter
    callsign_ttl_requests++;
 
@@ -605,7 +604,7 @@ static void init_my_coords(void) {
       if (comma == NULL) {
          log_send(mainlog, LOG_CRIT, "cfg:site:coordinates is invalid (missing comma)!");
       } else {
-         comma++;       // skip the comma
+         comma++;               // skip the comma
 
          if (comma == NULL) {
             // this is an error
@@ -616,8 +615,8 @@ static void init_my_coords(void) {
                comma++;
             }
          }
-         float lat = atof(coords);      // this stops at the comma after latitude
-         float lon = atof(comma);               // this stops at any text after longitude
+         float lat = atof(coords);  // this stops at the comma after latitude
+         float lon = atof(comma);   // this stops at any text after longitude
          my_coords.latitude = lat;
          my_coords.longitude = lon;
       }
@@ -885,7 +884,6 @@ static bool parse_request(const char *line) {
 
          return false;
       }
-
       // skip leading whitespace...
       const char *p = point;
       while (p != NULL && (*p == ' ' || *p == '\t')) {
@@ -933,9 +931,9 @@ static bool parse_request(const char *line) {
 
             if (lat_dot != NULL && lon_dot != NULL) {
                const char *lon_end = lon_dot + strlen(lon_dot);
-               lat_digits = (int)((comma - 1) - (lat_dot + 1)); // get lat length
-               comma++;                                         // skip the comma
-               lon_digits = (int)(lon_end - (lon_dot + 1));             // figure out lon length
+               lat_digits = (int)((comma - 1) - (lat_dot + 1));   // get lat length
+               comma++;         // skip the comma
+               lon_digits = (int)(lon_end - (lon_dot + 1)); // figure out lon length
 //              log_send(mainlog, LOG_DEBUG, "precision: lat_digits: %lu, lon_digits: %lu", lat_digits, lon_digits);
             } else {
                fprintf(stdout, "+ERROR: You must specify at least one decimal place for each coordinate\n");
@@ -966,8 +964,8 @@ static bool parse_request(const char *line) {
                }
             }
 
-            float lat = atof(p);        // this stops at the comma after latitude
-            float lon = atof(comma);    // this stops at any text after longitude
+            float lat = atof(p); // this stops at the comma after latitude
+            float lon = atof(comma);   // this stops at any text after longitude
             coord.latitude = lat;
             coord.longitude = lon;
             their_grid = latlon2maidenhead(&coord);
@@ -1028,7 +1026,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
       return;
    }
 
-   InputBuffer *input = (InputBuffer *)w->data;
+   InputBuffer *input = (InputBuffer *) w->data;
    ssize_t bytesRead = read(STDIN_FILENO, input->buffer + input->length, BUFFER_SIZE - input->length);
 
    if (bytesRead < 0) {
@@ -1054,7 +1052,7 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
    // Process complete lines
    char *newline;
    while ((newline = strchr(input->buffer, '\n')) != NULL) {
-      *newline = '\0';   // Replace newline character with null terminator
+      *newline = '\0';          // Replace newline character with null terminator
       parse_request(input->buffer);
       fflush(stdout);
       memmove(input->buffer, newline + 1, input->length - (newline - input->buffer));
@@ -1065,12 +1063,12 @@ static void stdin_cb(EV_P_ ev_io *w, int revents) {
    if (input->length == BUFFER_SIZE) {
       fprintf(stdout, "+ERROR Input buffer full, discarding incomplete line: %s\n", input->buffer);
       fflush(stdout);
-      input->length = 0;   // Discard the incomplete line
+      input->length = 0;        // Discard the incomplete line
    }
 }
 
 static void periodic_cb(EV_P_ ev_timer *w, int revents) {
-   now = time(NULL);                       // update our shared timestamp
+   now = time(NULL);            // update our shared timestamp
 
    // every 3 hours, expire old cache data entries
    if ((now % 10800) == 0) {
@@ -1151,7 +1149,6 @@ int main(int argc, char **argv) {
       // enforce a minimum of 30 seconds between retries
       Config.online_mode_retry = 30;
    }
-
    // initialize site location data
    init_my_coords();
 
@@ -1229,7 +1226,6 @@ int main(int argc, char **argv) {
    if (!dying) {
       ev_run(loop, 0);
    }
-
    // Close the database(s)
    sql_fini();
 

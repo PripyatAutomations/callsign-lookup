@@ -75,8 +75,9 @@ static inline time_t callsign_timestr2time_t(const char *s) {
       n *= 60;
    }
 
-   return (time_t)n;
+   return (time_t) n;
 }
+
 #define timestr2time_t callsign_timestr2time_t
 
 #endif

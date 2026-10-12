@@ -16,14 +16,14 @@ typedef struct qrz_session {
    int count;                   // how many lookups have been done today
    time_t sub_expiration;       // when does my subscription end?
    time_t last_rx;              // timestamp of last valid reply
-   char my_callsign[MAX_CALLSIGN];         // my callsign
-   char      *last_msg;         // pointer to last informational message (must be free()d and NULLed!)
-   char      *last_error;       // point to last error message (must be freed() and NULLed!)
+   char my_callsign[MAX_CALLSIGN];     // my callsign
+   char *last_msg;              // pointer to last informational message (must be free()d and NULLed!)
+   char *last_error;            // point to last error message (must be freed() and NULLed!)
 } qrz_session_t;
 
 extern bool qrz_start_session(void);
 extern calldata_t *qrz_lookup_callsign(const char *callsign);
-extern Config_t Config;                 // from clalsign-lookup.c
+extern Config_t Config;         // from clalsign-lookup.c
 #ifdef __cplusplus
 };
 #endif

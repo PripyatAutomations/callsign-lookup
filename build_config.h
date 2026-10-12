@@ -47,7 +47,7 @@
 #define HOST_EEPROM_FILE "build/radio/eeprom.bin"
 #define HOST_CAT_PIPE "cat.fifo"
 #define HOST_POSIX
-#define HOST_LINUX  // This should not be here, but i2c depends on it for now
+#define HOST_LINUX              // This should not be here, but i2c depends on it for now
 #define EEPROM_READONLY
 //#define       NOISY_EEPROM true
 #define BACKEND_HAMLIB_DEBUG RIG_DEBUG_WARN

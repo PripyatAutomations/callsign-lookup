@@ -63,7 +63,6 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
       q->count = -1;
       q->sub_expiration = -1;
    }
-
    // set last received message time to now
    q->last_rx = time(NULL);
 
@@ -91,7 +90,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
             snprintf(q->key, 33, "%s", newkey);
          }
       }
-   }    // key != NULL
+   }                            // key != NULL
 
    char *sub_exp = strstr(buf, "<SubExp>");
    char *new_sub_exp = NULL;
@@ -118,7 +117,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 
          qrz_session->sub_expiration = myret;
       }
-   }    // sub_exp != NULL
+   }                            // sub_exp != NULL
    char *countp = strstr(buf, "<Count>");
    uint64_t new_count = 0;
 
@@ -145,7 +144,7 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
 //            log_send(mainlog, LOG_DEBUG, "qrz_xml_api: Got Count: %d", q->count);
          }
       }
-   }    // count != NULL
+   }                            // count != NULL
 
    // is the session started?
    if (q->sub_expiration > 0 && q->key[0] != '\0' && q->count >= -1) {
@@ -188,7 +187,6 @@ bool qrz_parse_http_data(const char *buf, calldata_t *calldata) {
          }
       }
    }
-
    ////////////
    // XXX: Check and make sure this is wrapped in <QRZDatabase>
    // QRZ has returned both mixed-case and lower-case tag names over time.
@@ -511,7 +509,6 @@ bool http_post(const char *url, const char *postdata, char *buf, size_t bufsz) {
    if (postdata != NULL) {
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postdata);
    }
-
 //   log_send(mainlog, LOG_DEBUG, "qrz:http_post: Fetching %s", url);
 
    // send the request
@@ -581,7 +578,6 @@ bool qrz_start_session(void) {
 
          return false;
       }
-
       // reset the failure counter...
       qrz_login_tries = 0;
       Config.offline = false;
