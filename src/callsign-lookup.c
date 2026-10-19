@@ -1140,6 +1140,8 @@ int main(int argc, char **argv) {
       if (protocol_stdout >= 0) close(protocol_stdout);
       return 1;
    }
+   /* This helper reads server config but owns only callsign/site settings. */
+   cfg_set_ignore_unknown_sections(true);
    // Use an explicit file when requested, otherwise search the standard
    // standalone locations just like rrclient and rrserver do.
    if (config_file) {
