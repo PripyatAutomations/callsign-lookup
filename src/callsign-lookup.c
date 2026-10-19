@@ -1136,7 +1136,7 @@ int main(int argc, char **argv) {
    fflush(stdout);
    int protocol_stdout = dup(STDOUT_FILENO);
    if (protocol_stdout < 0 || dup2(STDERR_FILENO, STDOUT_FILENO) < 0) {
-      fprintf(stderr, "Unable to isolate callsign helper protocol stdout: %s\\n", strerror(errno));
+      fprintf(stderr, "Unable to isolate callsign helper protocol stdout: %s\n", strerror(errno));
       if (protocol_stdout >= 0) close(protocol_stdout);
       return 1;
    }
@@ -1155,7 +1155,7 @@ int main(int argc, char **argv) {
 
    fflush(stdout);
    if (dup2(protocol_stdout, STDOUT_FILENO) < 0) {
-      fprintf(stderr, "Unable to restore callsign helper protocol stdout\\n");
+      fprintf(stderr, "Unable to restore callsign helper protocol stdout\n");
       close(protocol_stdout);
       return 1;
    }
