@@ -26,10 +26,18 @@ CFLAGS += ${SAN_FLAGS} ${WARN_FLAGS} ${ERROR_FLAGS} ${OPT_FLAGS} -DDEBUG=1
 
 C_STD := -std=gnu11
 CXX_STD := -std=gnu++17
+# librustyaxe's public headers require GLib, including in standalone builds.
+ifeq ($(shell pkg-config --exists glib-2.0 && echo yes),)
+$(error Missing glib-2.0 development files; install libglib2.0-dev (or your platform equivalent) and pkg-config)
+endif
+GLIB_CFLAGS := $(shell pkg-config --cflags glib-2.0)
+GLIB_LIBS := $(shell pkg-config --libs glib-2.0)
+CFLAGS += ${GLIB_CFLAGS}
 CFLAGS += ${C_STD} -I./ -I../ -I./ext/ -I./include/ -I./ext/ft8_lib/ -fPIC
 CXXFLAGS := ${CXX_STD} $(filter-out ${C_STD},${CFLAGS})
 LDFLAGS += ${SAN_LDFLAGS} -L.. -lrustyaxe -Wl,-rpath,'$$ORIGIN/..'
 LDFLAGS += $(foreach x,${common_libs},-l${x})
+LDFLAGS += ${GLIB_LIBS}
 
 ifeq (${POSTGRESQL},y)
 callsign_lookup_libs += pq
