@@ -2,7 +2,21 @@ VERSION = 20230524
 #CC := clang
 all: world
 bins := callsign-lookup
-librustyaxe ?= ../librustyaxe.so
+# Match the parent build's provider, or auto-detect for standalone builds.
+LIBRUSTYAXE_PROVIDER ?= auto
+ifeq ($(LIBRUSTYAXE_PROVIDER),auto)
+LIBRUSTYAXE_PROVIDER := $(if $(shell pkg-config --exists librustyaxe && echo yes),system,local)
+endif
+ifeq ($(LIBRUSTYAXE_PROVIDER),system)
+ifeq ($(shell pkg-config --exists librustyaxe && echo yes),)
+$(error Install librustyaxe-dev or use LIBRUSTYAXE_PROVIDER=local)
+endif
+librustyaxe := $(shell pkg-config --variable=libdir librustyaxe)/librustyaxe.so
+else ifeq ($(LIBRUSTYAXE_PROVIDER),local)
+librustyaxe := ../librustyaxe.so
+else
+$(error Invalid LIBRUSTYAXE_PROVIDER=$(LIBRUSTYAXE_PROVIDER))
+endif
 
 # When this subproject is checked out below rustyrig-fw, put the executable
 # alongside the other project binaries.  A standalone checkout retains its
