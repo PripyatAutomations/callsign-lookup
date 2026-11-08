@@ -2,16 +2,21 @@ VERSION = 20230524
 #CC := clang
 all: world
 bins := callsign-lookup
-# Match the parent build's provider, or auto-detect for standalone builds.
+# The optional .pc file can supply flags, but a compiler/linker probe is
+# authoritative. A normal installed -lrustyaxe works without pkg-config.
 LIBRUSTYAXE_PROVIDER ?= auto
+AXE_PKG_CONFIG ?= pkg-config
+AXE_PROBE := $(shell AXE_CC='$(CC)' AXE_PKG_CONFIG='$(AXE_PKG_CONFIG)' \
+    AXE_CPPFLAGS='$(CPPFLAGS)' AXE_CFLAGS='$(CFLAGS) $(shell pkg-config --cflags glib-2.0 2>/dev/null)' \
+    AXE_LDFLAGS='$(LDFLAGS)' sh tools/probe-librustyaxe.sh)
 ifeq ($(LIBRUSTYAXE_PROVIDER),auto)
-LIBRUSTYAXE_PROVIDER := $(if $(shell pkg-config --exists librustyaxe && echo yes),system,local)
+LIBRUSTYAXE_PROVIDER := $(if $(filter none,$(AXE_PROBE)),local,system)
 endif
 ifeq ($(LIBRUSTYAXE_PROVIDER),system)
-ifeq ($(shell pkg-config --exists librustyaxe && echo yes),)
-$(error Install librustyaxe-dev or use LIBRUSTYAXE_PROVIDER=local)
+ifeq ($(AXE_PROBE),none)
+$(error Installed librustyaxe cannot compile/link; use LIBRUSTYAXE_PROVIDER=local)
 endif
-librustyaxe := $(shell pkg-config --variable=libdir librustyaxe)/librustyaxe.so
+librustyaxe :=
 else ifeq ($(LIBRUSTYAXE_PROVIDER),local)
 librustyaxe := ../librustyaxe.so
 else
