@@ -1,4 +1,7 @@
-VERSION = 20230524
+VERSION := $(strip $(shell cat .version))
+ifeq ($(VERSION),)
+$(error Missing or empty .version)
+endif
 #CC := clang
 all: world
 bins := callsign-lookup
