@@ -35,8 +35,8 @@ GLIB_LIBS := $(shell pkg-config --libs glib-2.0)
 CFLAGS += ${GLIB_CFLAGS}
 ifeq ($(LIBRUSTYAXE_PROVIDER),system)
 # Put installed headers ahead of the parent's checkout-root headers.
-CFLAGS += $(shell pkg-config --cflags librustyaxe)
-LDFLAGS += $(shell pkg-config --libs librustyaxe)
+CFLAGS += $(shell pkg-config --cflags librustyaxe 2>/dev/null)
+LDFLAGS += $(shell pkg-config --libs-only-L librustyaxe 2>/dev/null) -lrustyaxe
 else
 LDFLAGS += -L.. -lrustyaxe -Wl,-rpath,'$ORIGIN/..'
 endif
