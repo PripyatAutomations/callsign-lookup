@@ -35,12 +35,15 @@ GLIB_LIBS := $(shell pkg-config --libs glib-2.0)
 CFLAGS += ${GLIB_CFLAGS}
 ifeq ($(LIBRUSTYAXE_PROVIDER),system)
 # Put installed headers ahead of the parent's checkout-root headers.
-CFLAGS += -I$(shell pkg-config --variable=includedir librustyaxe)
+CFLAGS += $(shell pkg-config --cflags librustyaxe)
 LDFLAGS += $(shell pkg-config --libs librustyaxe)
 else
 LDFLAGS += -L.. -lrustyaxe -Wl,-rpath,'$ORIGIN/..'
 endif
-CFLAGS += ${C_STD} -I./ -I../ -I./ext/ -I./include/ -I./ext/ft8_lib/ -fPIC
+CFLAGS += ${C_STD} -I./ -I./ext/ -I./include/ -I./ext/ft8_lib/ -fPIC
+ifneq ($(LIBRUSTYAXE_PROVIDER),system)
+CFLAGS += -I../
+endif
 CXXFLAGS := ${CXX_STD} $(filter-out ${C_STD},${CFLAGS})
 LDFLAGS += ${SAN_LDFLAGS}
 LDFLAGS += $(foreach x,${common_libs},-l${x})
