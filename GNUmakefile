@@ -27,7 +27,7 @@ endif
 # alongside the other project binaries.  A standalone checkout retains its
 # historical callsign-lookup/bin/ destination.  Set RUSTYRIG_FW_BUILD=true
 # explicitly when the parent tree is not adjacent to this directory.
-RUSTYRIG_FW_BUILD ?= auto
+RUSTYRIG_FW_BUILD ?= false
 ifeq (${RUSTYRIG_FW_BUILD},auto)
 ifneq ($(wildcard ../config/radio.config.json),)
 RUSTYRIG_FW_BUILD := true
@@ -70,6 +70,18 @@ include mk/compile.mk
 include mk/help.mk
 include mk/clean.mk
 include mk/install.mk
+
+
+# Debian packaging belongs to this source repository, not rustyrig-fw.
+.PHONY: deb src-deb source-deb
+deb:
+	dpkg-buildpackage -b -us -uc
+
+src-deb source-deb:
+	@git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git diff --quiet && git diff --cached --quiet || { echo "Commit tracked changes before source packaging" >&2; exit 1; }
+	@v=$(dpkg-parsechangelog -S Version | sed 's/-[^-]*$//'); \
+	 git archive --format=tar --prefix="rustyrig-callsign-lookup-$v/" HEAD -- . ':!debian' | gzip -n > "../rustyrig-callsign-lookup_$v.orig.tar.gz"
+	dpkg-buildpackage -S -us -uc
 
 # Build all subdirectories first, then our binary
 prebuild:
