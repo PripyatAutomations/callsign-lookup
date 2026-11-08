@@ -1,3 +1,3 @@
-obj/%.o: src/%.c $(wildcard include/*.h)
+obj/%.o: src/%.c .version $(wildcard include/*.h)
 	@echo "[CC] $< -> $@"
-	@${CC} ${CFLAGS} -o $@ -c $<
+	@${CC} ${CFLAGS} -DVERSION=\"$(VERSION)\" -o $@ -c $<
