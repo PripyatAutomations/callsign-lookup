@@ -1,0 +1,7 @@
+rustyrig-callsign-lookup (1.0.3-1) unstable; urgency=medium
+
+  * Build the callsign helper from its own source repository.
+  * Preserve the existing executable and /etc/rustyrig configuration path.
+  * Use libcurl for TLS-based HTTPS requests; no Mongoose SDK dependency.
+
+ -- Pripyat Automations <dangerousdevices@istabpeople.com>  Sun, 08 Nov 2026 01:00:00 -0500

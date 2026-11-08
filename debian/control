@@ -1,0 +1,27 @@
+Source: rustyrig-callsign-lookup
+Section: hamradio
+Priority: optional
+Maintainer: Pripyat Automations <dangerousdevices@istabpeople.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ pkg-config,
+ librustyaxe-dev,
+ libglib2.0-dev,
+ libbsd-dev,
+ libev-dev,
+ libsqlite3-dev,
+ libspatialite-dev,
+ libcurl4-openssl-dev,
+ sqlite3
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/PripyatAutomations/callsign-lookup
+Vcs-Git: https://github.com/PripyatAutomations/callsign-lookup.git
+Vcs-Browser: https://github.com/PripyatAutomations/callsign-lookup
+
+Package: rustyrig-callsign-lookup
+Architecture: any
+Depends: librustyaxe0, ${shlibs:Depends}, ${misc:Depends}
+Description: RustyRig standalone callsign lookup helper
+ Local FCC/ULS callsign information and optional QRZ XML API over HTTPS.
+ The line-oriented helper can be used by RustyRig or independently.

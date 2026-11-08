@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+%:
+	dh $@
+
+override_dh_auto_build:
+	$(MAKE) world RUSTYRIG_FW_BUILD=false LIBRUSTYAXE_PROVIDER=system
+
+override_dh_auto_test:
+	:
+
+override_dh_auto_install:
+	$(MAKE) install RUSTYRIG_FW_BUILD=false LIBRUSTYAXE_PROVIDER=system PREFIX=/usr DESTDIR=$(CURDIR)/debian/rustyrig-callsign-lookup
+	install -Dm644 packaging/callsign-lookup.cfg $(CURDIR)/debian/rustyrig-callsign-lookup/etc/rustyrig/callsign-lookup.cfg
+
+override_dh_auto_clean:
+	$(MAKE) clean RUSTYRIG_FW_BUILD=false || true
+	rm -f etc/calldata-cache.db
