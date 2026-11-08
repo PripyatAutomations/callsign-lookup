@@ -18,6 +18,7 @@
 #include <sys/param.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include "ft8goblin_types.h"
 #include "qrz-xml.h"
 
