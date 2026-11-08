@@ -1,0 +1,26 @@
+# Build from the standalone callsign-lookup source; do not bundle with rustyrig-fw.
+pkgname=rustyrig-callsign-lookup
+pkgver=1.0.3
+pkgrel=1
+pkgdesc='Standalone RustyRig callsign lookup helper'
+arch=('x86_64' 'aarch64')
+url='https://github.com/PripyatAutomations/callsign-lookup'
+license=('MIT')
+depends=('librustyaxe' 'libev' 'sqlite' 'curl' 'libspatialite' 'glib2')
+makedepends=('git' 'make' 'pkgconf' 'libbsd')
+backup=('etc/rustyrig/callsign-lookup.cfg')
+source=('git+https://github.com/PripyatAutomations/callsign-lookup.git')
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir/callsign-lookup"
+    make world RUSTYRIG_FW_BUILD=false LIBRUSTYAXE_PROVIDER=system
+}
+
+package() {
+    cd "$srcdir/callsign-lookup"
+    make install RUSTYRIG_FW_BUILD=false LIBRUSTYAXE_PROVIDER=system \
+        PREFIX=/usr DESTDIR="$pkgdir"
+    install -Dm644 packaging/callsign-lookup.cfg \
+        "$pkgdir/etc/rustyrig/callsign-lookup.cfg"
+}
