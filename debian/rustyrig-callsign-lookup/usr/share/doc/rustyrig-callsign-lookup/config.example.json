@@ -1,0 +1,38 @@
+{
+   "version": 1,
+   "logging": {
+      "callsign-lookup-logpath": "file://callsign-lookup.log",
+      "callsign-lookup-loglevel": "debug"
+   },
+   "site": {
+      "mycall": "N0CALL",
+      "gridsquare": "AA00cc",
+      "x-coordinates": "12.34, -56.78",
+      "elevation": "340M",
+      "city": "Earth City",
+      "state": "MO",
+      "country": "USA"
+    },
+    "callsign-lookup": {
+      "respawn-after-requests": 1000,
+      "use-uls": "false",
+      "fcc-uls-db": "sqlite3:/home/user/.callsign-lookup/fcc-uls.db",
+      "use-qrz": "false",
+      "qrz-api-url": "https://xmldata.qrz.com/xml/1.34/",
+      "qrz-username": "YOURCALLSIGN",
+      "qrz-password": "YOURPASSWORD",
+      "use-cache": "true",
+      "cache-db": "sqlite3:/home/user/.callsign-lookup/calldata-cache.db",
+      "cache-online-lookups": "true",
+      "cache-expiry": "3d",
+      "retry-delay": "30m",
+      "cache-keep-stale-if-offline": "true",
+      "use-lotw-activity": "false",
+      "lotw-url": "https://lotw.arrl.org/lotw-user-activity.csv",
+      "lotw-activity-download": "1d"
+   },
+   "gnis-lookup": {
+      "gnis-db": "gnis.db",
+      "use-gnis": "false"
+   }
+}

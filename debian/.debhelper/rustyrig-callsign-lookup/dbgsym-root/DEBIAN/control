@@ -1,0 +1,12 @@
+Package: rustyrig-callsign-lookup-dbgsym
+Source: rustyrig-callsign-lookup
+Version: 1.0.3-1
+Auto-Built-Package: debug-symbols
+Architecture: amd64
+Maintainer: Pripyat Automations <dangerousdevices@istabpeople.com>
+Installed-Size: 71
+Depends: rustyrig-callsign-lookup (= 1.0.3-1)
+Section: debug
+Priority: optional
+Description: debug symbols for rustyrig-callsign-lookup
+Build-Ids: 1a953a37386d448df50c3b58aa5884d56741487f

@@ -1,0 +1,5 @@
+f25dcff099d4f856a4b853417fe99d90  usr/bin/callsign-lookup
+9d8d3d72688239fb6d33ca3183655b32  usr/share/doc/rustyrig-callsign-lookup/README
+6c962958d2fd1a125cf62b6dcd11f18b  usr/share/doc/rustyrig-callsign-lookup/changelog.Debian.gz
+5620696d8d4225bbb7033da77cc36591  usr/share/doc/rustyrig-callsign-lookup/config.example.json
+4679c95deacbb8c5d13cbbf8344124b6  usr/share/doc/rustyrig-callsign-lookup/copyright

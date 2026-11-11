@@ -1,6 +1,6 @@
 # Build from the standalone callsign-lookup source; do not bundle with rustyrig-fw.
 pkgname=rustyrig-callsign-lookup
-pkgver=1.0.3
+pkgver=1.0.4
 pkgrel=1
 pkgdesc='Standalone RustyRig callsign lookup helper'
 arch=('x86_64' 'aarch64')

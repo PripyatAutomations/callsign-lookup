@@ -1,0 +1,12 @@
+Package: rustyrig-callsign-lookup
+Version: 1.0.3-1
+Architecture: amd64
+Maintainer: Pripyat Automations <dangerousdevices@istabpeople.com>
+Installed-Size: 66
+Depends: librustyaxe0 (>= 0.1.0), libc6 (>= 2.34), libcurl4t64 (>= 7.16.2), libev4t64 (>= 1:4.04), libsqlite3-0 (>= 3.5.9)
+Section: hamradio
+Priority: optional
+Homepage: https://github.com/PripyatAutomations/callsign-lookup
+Description: RustyRig standalone callsign lookup helper
+ Local FCC/ULS callsign information and optional QRZ XML API over HTTPS.
+ The line-oriented helper can be used by RustyRig or independently.

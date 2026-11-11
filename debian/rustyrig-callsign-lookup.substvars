@@ -1,0 +1,3 @@
+shlibs:Depends=libc6 (>= 2.34), libcurl4t64 (>= 7.16.2), libev4t64 (>= 1:4.04), librustyaxe0 (>= 0.1.0), libsqlite3-0 (>= 3.5.9)
+misc:Depends=
+misc:Pre-Depends=

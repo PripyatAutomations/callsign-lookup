@@ -1,3 +1,9 @@
+rustyrig-callsign-lookup (1.0.4-1) unstable; urgency=medium
+
+  * Release upstream version 1.0.4.
+
+ -- Pripyat Automations <dangerousdevices@istabpeople.com>  Tue, 10 Nov 2026 21:43:34 -0500
+
 rustyrig-callsign-lookup (1.0.3-1) unstable; urgency=medium
 
   * Build the callsign helper from its own source repository.
