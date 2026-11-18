@@ -64,3 +64,17 @@ data-sources/gnis/*.7z
 qrztest*
 scripts/test/
 scripts/test/*
+
+debian/*.log
+debian/.debhelper/*
+debian/*.debhelper
+debian/.debhelper
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*/DEBIAN/
+debian/tmp/
+debian/.debhelper/*
+debian/files
+debian/rustyrig-callsign-lookup.substvars
+debian/rustyrig-callsign-lookup/*
