@@ -1,5 +1,5 @@
 Name: rustyrig-callsign-lookup
-Version: 1.0.5
+Version: 1.0.6
 Release: 1%{?dist}
 Summary: Standalone RustyRig callsign lookup helper
 License: MIT
