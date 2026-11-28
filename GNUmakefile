@@ -3,6 +3,13 @@ ifeq ($(VERSION),)
 $(error Missing or empty .version)
 endif
 #CC := clang
+# Diagnose a missing executable before probing installed development libraries.
+# Pure maintenance targets must remain usable without the build toolchain.
+ifneq ($(strip $(if $(MAKECMDGOALS),$(filter-out clean distclean uninstall gmatrix-clean src-deb source-deb,$(MAKECMDGOALS)),all)),)
+ifeq ($(shell pkg-config --version >/dev/null 2>&1 && echo yes),)
+$(error Required build tool 'pkg-config' is missing or not executable. Install pkg-config (Debian/Devuan: apt install pkg-config; Fedora: dnf install pkgconf-pkg-config; Arch: pacman -S pkgconf))
+endif
+endif
 all: world
 bins := callsign-lookup
 # The optional .pc file can supply flags, but a compiler/linker probe is
